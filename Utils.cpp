@@ -18,29 +18,22 @@
 //
 
 #include "Utils.h"
+#include <codecvt>  // for utf8 conversion
+#include <locale>  // for wstring_convert
+
 #include <Windows.h>
 #include <Winnls.h>
 
+using namespace std;
+
+static wstring_convert<codecvt_utf8<wchar_t>> utf8Codec;
+
 std::wstring utf8ToUtf16(const char* text) {
-	std::wstring wtext;
-	int wlen = ::MultiByteToWideChar(CP_UTF8, 0, text, -1, NULL, 0);
-	if(wlen > 1) { // length includes terminating null
-		wtext.resize(wlen - 1);
-		// well, this is a little bit dirty, but it works!
-		wlen = ::MultiByteToWideChar(CP_UTF8, 0, text, -1, &wtext[0], wlen);
-	}
-	return wtext;
+	return utf8Codec.from_bytes(text);
 }
 
 std::string utf16ToUtf8(const wchar_t* wtext) {
-	std::string text;
-	int len = ::WideCharToMultiByte(CP_UTF8, 0, wtext, -1, NULL, 0, NULL, NULL);
-	if(len > 1) { // length includes terminating null
-		text.resize(len - 1);
-		// well, this is a little bit dirty, but it works!
-		len = ::WideCharToMultiByte(CP_UTF8, 0, wtext, -1, &text[0], len, NULL, NULL);
-	}
-	return text;
+	return utf8Codec.to_bytes(wtext);
 }
 
 std::wstring tradToSimpChinese(const std::wstring& trad) {
