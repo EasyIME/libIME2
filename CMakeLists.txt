@@ -1,12 +1,20 @@
 cmake_minimum_required(VERSION 2.8.8)
 
 project(libIME)
+enable_testing()
 
 # http://www.utf8everywhere.org/
 add_definitions(
     /D_UNICODE=1
     /DUNICODE=1
 )
+
+set(CMAKE_CXX_STANDARD 11)
+
+set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
+
+# This requires newer C++ compilers and does not work with VC++ 2015.
+add_subdirectory(googletest-release-1.10.0)
 
 add_library(libIME_static STATIC
     # Core TSF part
