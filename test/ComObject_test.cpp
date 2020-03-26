@@ -4,7 +4,7 @@
 #include <unknwn.h>
 #include <msctf.h>
 
-#include "IUnknownImpl.h"
+#include "ComObject.h"
 
 interface __declspec(uuid("5F840B91-F834-498D-9EAA-C3F65D87A7B2")) Interface1: public IUnknown {
 };
@@ -15,7 +15,7 @@ interface __declspec(uuid("31C548DD-7FD8-4380-BBD4-2F4F47F0BC0D")) Interface2 : 
 
 TEST(TestIUnknownImpl, RefCounts)
 {
-    auto obj = new Ime::IUnknownImpl<Interface1, Interface2>();
+    auto obj = new Ime::ComObject<Interface1, Interface2>();
     EXPECT_EQ(obj->refCount(), 1);
 
     EXPECT_EQ(obj->AddRef(), 2);
@@ -31,7 +31,7 @@ TEST(TestIUnknownImpl, RefCounts)
 
 TEST(TestIUnknownImpl, QueryInterface)
 {
-    auto obj = new Ime::IUnknownImpl<Interface1, Interface2>();
+    auto obj = new Ime::ComObject<Interface1, Interface2>();
     EXPECT_EQ(obj->refCount(), 1);
 
     IUnknown* ptr = nullptr;
@@ -60,7 +60,7 @@ TEST(TestIUnknownImpl, QueryInterface)
 
 TEST(TestIUnknownImpl, QueryInterfaceTSF)
 {
-    class TestImpl : public Ime::IUnknownImpl<ITfCompartmentEventSink > {
+    class TestImpl : public Ime::ComObject<ITfCompartmentEventSink > {
     public:
         MOCK_METHOD(HRESULT, OnChange, (REFGUID rguid), (Calltype(STDMETHODCALLTYPE), override));
 

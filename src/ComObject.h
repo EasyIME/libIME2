@@ -7,11 +7,11 @@ namespace Ime {
 
 // Common base class to implement COM objects.
 template <typename... Interfaces>
-class IUnknownImpl : public IUnknown, public Interfaces... {
+class ComObject : public IUnknown, public Interfaces... {
 public:
-    IUnknownImpl() : refCount_{ 1 } {}
+    ComObject() : refCount_{ 1 } {}
 
-    virtual ~IUnknownImpl() {}
+    virtual ~ComObject() {}
 
     int refCount() const {
         return refCount_;
