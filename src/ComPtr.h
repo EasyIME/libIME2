@@ -135,44 +135,6 @@ protected:
 	T* p_;
 };
 
-
-// a smart pointer for COM interface/object with automatic QueryInterface
-// QueryInterface() for interface T was done automatically on
-// assignment or construction.
-// automatic AddRef() on copy and Release() on destruction.
-
-template <class T>
-class ComQIPtr: public ComPtr<T> {
-
-public:
-	ComQIPtr(void): ComPtr<T>() {
-	}
-
-	ComQIPtr(T* p): ComPtr<T>(p) {
-	}
-
-	ComQIPtr(const ComQIPtr& other): ComPtr<T>(other) {
-	}
-
-	ComQIPtr(ComQIPtr&& other) noexcept : ComPtr<T>(std::move(other)) {
-	}
-
-	ComQIPtr(IUnknown* p) : ComPtr<T>() {
-		if(p) {
-			p->QueryInterface(__uuidof(T), (void**)&p_);
-		}
-	}
-
-	ComQIPtr& operator = (IUnknown* p) {
-		ComPtr<T>::operator = (nullptr);
-		if(p) {
-			p->QueryInterface(__uuidof(T), (void**)&p_);
-		}
-		return *this;
-	}
-
-};
-
 }
 
 #endif

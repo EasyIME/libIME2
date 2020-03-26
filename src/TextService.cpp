@@ -57,11 +57,11 @@ TextService::~TextService(void) {
 	if(!compartmentMonitors_.empty()) {
 		vector<CompartmentMonitor>::iterator it;
 		for(it = compartmentMonitors_.begin(); it != compartmentMonitors_.end(); ++it) {
-			ComQIPtr<ITfSource> source;
+			ComPtr<ITfSource> source;
 			if(it->isGlobal)
-				source = globalCompartment(it->guid);
+				source = globalCompartment(it->guid).query<ITfSource>();
 			else
-				source = threadCompartment(it->guid);
+				source = threadCompartment(it->guid).query<ITfSource>();
 			if (source) {
 				source->UnadviseSink(it->cookie);
 			}
@@ -314,7 +314,7 @@ void TextService::setCompositionCursor(EditSession* session, int pos) {
 // compartment handling
 ComPtr<ITfCompartment> TextService::globalCompartment(const GUID& key) {
 	if(threadMgr_) {
-		ComQIPtr<ITfCompartmentMgr> compartmentMgr;
+		ComPtr<ITfCompartmentMgr> compartmentMgr;
 		if(threadMgr_->GetGlobalCompartment(&compartmentMgr) == S_OK) {
 			ComPtr<ITfCompartment> compartment;
 			compartmentMgr->GetCompartment(key, &compartment);
@@ -326,7 +326,7 @@ ComPtr<ITfCompartment> TextService::globalCompartment(const GUID& key) {
 
 ComPtr<ITfCompartment> TextService::threadCompartment(const GUID& key) {
 	if(threadMgr_) {
-		ComQIPtr<ITfCompartmentMgr> compartmentMgr = threadMgr_;
+		auto compartmentMgr = threadMgr_.query<ITfCompartmentMgr>();
 		if(compartmentMgr) {
 			ComPtr<ITfCompartment> compartment;
 			compartmentMgr->GetCompartment(key, &compartment);
@@ -343,7 +343,7 @@ ComPtr<ITfCompartment> TextService::contextCompartment(const GUID& key, ITfConte
 		context = curContext;
 	}
 	if(context) {
-		ComQIPtr<ITfCompartmentMgr> compartmentMgr = context;
+		auto compartmentMgr = ComPtr<ITfCompartmentMgr>::query(context);
 		if(compartmentMgr) {
 			ComPtr<ITfCompartment> compartment;
 			compartmentMgr->GetCompartment(key, &compartment);
@@ -459,11 +459,11 @@ void TextService::addCompartmentMonitor(const GUID key, bool isGlobal) {
 	monitor.isGlobal = isGlobal;
 	// if the text service is activated
 	if(threadMgr_) {
-		ComQIPtr<ITfSource> source;
+		ComPtr<ITfSource> source;
 		if(isGlobal)
-			source = globalCompartment(key);
+			source = globalCompartment(key).query<ITfSource>();
 		else
-			source = threadCompartment(key);
+			source = threadCompartment(key).query<ITfSource>();
 		if(source) {
 			source->AdviseSink(IID_ITfCompartmentEventSink, (ITfCompartmentEventSink*)this, &monitor.cookie);
 		}
@@ -476,11 +476,11 @@ void TextService::removeCompartmentMonitor(const GUID key) {
 	it = find(compartmentMonitors_.begin(), compartmentMonitors_.end(), key);
 	if(it != compartmentMonitors_.end()) {
 		if(threadMgr_) {
-			ComQIPtr<ITfSource> source;
+			ComPtr<ITfSource> source;
 			if(it->isGlobal)
-				source = globalCompartment(key);
+				source = globalCompartment(key).query<ITfSource>();
 			else
-				source = threadCompartment(key);
+				source = threadCompartment(key).query<ITfSource>();
 			source->UnadviseSink(it->cookie);
 		}
 		compartmentMonitors_.erase(it);
@@ -626,7 +626,7 @@ STDMETHODIMP TextService::Activate(ITfThreadMgr *pThreadMgr, TfClientId tfClient
 	clientId_ = tfClientId;
 
 	activateFlags_ = 0;
-	ComQIPtr<ITfThreadMgrEx> threadMgrEx = threadMgr_;
+	auto threadMgrEx = threadMgr_.query<ITfThreadMgrEx>();
 	if(threadMgrEx) {
 		threadMgrEx->GetActiveFlags(&activateFlags_);
 	}
@@ -634,7 +634,7 @@ STDMETHODIMP TextService::Activate(ITfThreadMgr *pThreadMgr, TfClientId tfClient
 	// advice event sinks (set up event listeners)
 	
 	// ITfThreadMgrEventSink, ITfActiveLanguageProfileNotifySink
-	ComQIPtr<ITfSource> source = threadMgr_;
+	auto source = threadMgr_.query<ITfSource>();
 	if(source) {
 		source->AdviseSink(IID_ITfThreadMgrEventSink, (ITfThreadMgrEventSink *)this, &threadMgrEventSinkCookie_);
 		source->AdviseSink(IID_ITfActiveLanguageProfileNotifySink, (ITfActiveLanguageProfileNotifySink *)this, &activateLanguageProfileNotifySinkCookie_);
@@ -643,9 +643,10 @@ STDMETHODIMP TextService::Activate(ITfThreadMgr *pThreadMgr, TfClientId tfClient
 	// ITfTextEditSink,
 
 	// ITfKeyEventSink
-	ComQIPtr<ITfKeystrokeMgr> keystrokeMgr = threadMgr_;
-	if(keystrokeMgr)
-		keystrokeMgr->AdviseKeyEventSink(clientId_, (ITfKeyEventSink*)this, TRUE);
+	auto keystrokeMgr = threadMgr_.query<ITfKeystrokeMgr>();
+    if (keystrokeMgr) {
+        keystrokeMgr->AdviseKeyEventSink(clientId_, (ITfKeyEventSink*)this, TRUE);
+    }
 
 	// register preserved keys
 	if(!preservedKeys_.empty()) {
@@ -663,11 +664,11 @@ STDMETHODIMP TextService::Activate(ITfThreadMgr *pThreadMgr, TfClientId tfClient
 	if(!compartmentMonitors_.empty()) {
 		vector<CompartmentMonitor>::iterator it;
 		for(it = compartmentMonitors_.begin(); it != compartmentMonitors_.end(); ++it) {
-			ComQIPtr<ITfSource> compartmentSource;
+			ComPtr<ITfSource> compartmentSource;
 			if(it->isGlobal)	// global compartment
-				compartmentSource = globalCompartment(it->guid);
+				compartmentSource = globalCompartment(it->guid).query<ITfSource>();
 			else 	// thread specific compartment
-				compartmentSource = threadCompartment(it->guid);
+				compartmentSource = threadCompartment(it->guid).query<ITfSource>();
 			compartmentSource->AdviseSink(IID_ITfCompartmentEventSink, (ITfCompartmentEventSink*)this, &it->cookie);
 		}
 	}
@@ -731,7 +732,7 @@ STDMETHODIMP TextService::Deactivate() {
 	// unadvice event sinks
 
 	// ITfThreadMgrEventSink
-	ComQIPtr<ITfSource> source = threadMgr_;
+	auto source = threadMgr_.query<ITfSource>();
 	if(source) {
 		source->UnadviseSink(threadMgrEventSinkCookie_);
 		source->UnadviseSink(activateLanguageProfileNotifySinkCookie_);
@@ -742,7 +743,7 @@ STDMETHODIMP TextService::Deactivate() {
 	// ITfTextEditSink,
 
 	// ITfKeyEventSink
-	ComQIPtr<ITfKeystrokeMgr> keystrokeMgr = threadMgr_;
+	auto keystrokeMgr = threadMgr_.query<ITfKeystrokeMgr>();
 	if(keystrokeMgr) {
 		keystrokeMgr->UnadviseKeyEventSink(clientId_);
 		// unregister preserved keys
@@ -761,7 +762,7 @@ STDMETHODIMP TextService::Deactivate() {
 	// thread specific compartment
 	ComPtr<ITfCompartment> compartment = threadCompartment(GUID_COMPARTMENT_KEYBOARD_OPENCLOSE);
 	if(compartment) {
-		ComQIPtr<ITfSource> compartmentSource = compartment;
+		ComPtr<ITfSource> compartmentSource = compartment.query<ITfSource>();
 		if(compartmentSource)
 			compartmentSource->UnadviseSink(keyboardOpenEventSinkCookie_);
 		keyboardOpenEventSinkCookie_ = TF_INVALID_COOKIE;
