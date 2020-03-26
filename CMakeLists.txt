@@ -9,7 +9,7 @@ add_definitions(
     /DUNICODE=1
 )
 
-set(CMAKE_CXX_STANDARD 11)
+set(CMAKE_CXX_STANDARD 14)
 set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
 
 # This requires newer C++ compilers and does not work with VC++ 2015.
