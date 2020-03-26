@@ -64,6 +64,19 @@ public:
         return ptr;
     }
 
+    // QueryInterface
+    template <typename U>
+    ComPtr<U> query() {
+        return ComPtr<U>::query(p_);
+    }
+
+    // QueryInterface
+    static ComPtr<T> query(IUnknown* p) {
+        T* result = nullptr;
+        p->QueryInterface(__uuidof(T), (void**)&result);
+        return ComPtr<T>::takeover(std::move(result));
+    }
+
 	T& operator * () const {
 		return *p_;
 	}
