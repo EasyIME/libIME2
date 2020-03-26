@@ -2,7 +2,7 @@
 #include "gmock/gmock.h"
 
 #include <unknwn.h>
-#include "../ComPtr.h"
+#include "ComPtr.h"
 
 using ::testing::Return;
 

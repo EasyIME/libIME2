@@ -4,7 +4,7 @@
 #include <unknwn.h>
 #include <msctf.h>
 
-#include "../IUnknownImpl.h"
+#include "IUnknownImpl.h"
 
 interface __declspec(uuid("5F840B91-F834-498D-9EAA-C3F65D87A7B2")) Interface1: public IUnknown {
 };
