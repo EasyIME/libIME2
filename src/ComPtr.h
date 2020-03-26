@@ -35,8 +35,8 @@ public:
 	ComPtr(void): p_(nullptr) {
 	}
 
-	ComPtr(T* p, bool ref = true): p_(p) {
-		if (p_ && ref) {
+	ComPtr(T* p): p_(p) {
+		if (p_) {
 			p_->AddRef();
 		}
 	}
@@ -56,6 +56,13 @@ public:
 			p_->Release();
 		}
 	}
+
+    static ComPtr takeover(T*&& rawPtr) {
+        ComPtr ptr;
+        ptr.p_ = rawPtr;
+        rawPtr = nullptr;
+        return ptr;
+    }
 
 	T& operator * () const {
 		return *p_;
