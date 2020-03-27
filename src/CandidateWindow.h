@@ -110,7 +110,6 @@ protected: // COM object should not be deleted directly. calling Release() inste
 	~CandidateWindow(void);
 
 private:
-	ULONG refCount_;
 	BOOL shown_;
 
 	int selKeyWidth_;
