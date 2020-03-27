@@ -18,8 +18,8 @@ public:
     }
 
     STDMETHODIMP QueryInterface(REFIID riid, void** ppvObj) {
-        if (ppvObj == NULL) {
-            return E_INVALIDARG;
+        if (ppvObj == nullptr) {
+            return E_POINTER;
         }
         *ppvObj = queryInterface<IUnknown, Interfaces...>(riid);
         if (*ppvObj) {

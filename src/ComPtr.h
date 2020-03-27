@@ -72,9 +72,11 @@ public:
 
     // QueryInterface
     static ComPtr<T> query(IUnknown* p) {
-        T* result = nullptr;
-        p->QueryInterface(__uuidof(T), (void**)&result);
-        return ComPtr<T>::takeover(std::move(result));
+        ComPtr<T> result;
+        if(p != nullptr) {
+            p->QueryInterface(__uuidof(T), (void**)&result);
+        }
+        return result;
     }
 
 	T& operator * () const {
