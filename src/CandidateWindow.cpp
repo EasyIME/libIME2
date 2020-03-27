@@ -62,38 +62,6 @@ CandidateWindow::CandidateWindow(TextService* service, EditSession* session):
 CandidateWindow::~CandidateWindow(void) {
 }
 
-// IUnknown
-STDMETHODIMP CandidateWindow::QueryInterface(REFIID riid, void **ppvObj) {
-	if (!ppvObj)
-		return E_INVALIDARG;
-
-	if (IsEqualIID(riid, IID_IUnknown) || IsEqualIID(riid, IID_ITfCandidateListUIElement)) {
-		*ppvObj = (ITfCandidateListUIElement*)this;
-	}
-	else {
-		*ppvObj = NULL;
-	}
-
-	if (!*ppvObj) {
-		return E_NOINTERFACE;
-	}
-
-	AddRef();
-	return S_OK;
-}
-
-STDMETHODIMP_(ULONG) CandidateWindow::AddRef(void) {
-	return ++refCount_;
-}
-
-STDMETHODIMP_(ULONG) CandidateWindow::Release(void) {
-	assert(refCount_ > 0);
-	const ULONG newCount = --refCount_;
-	if (refCount_ == 0)
-		delete this;
-	return newCount;
-}
-
 // ITfUIElement
 STDMETHODIMP CandidateWindow::GetDescription(BSTR *pbstrDescription) {
 	if (!pbstrDescription)

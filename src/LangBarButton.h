@@ -25,14 +25,14 @@
 #include <Windows.h>
 #include <map>
 #include <string>
+#include "ComObject.h"
 
 namespace Ime {
 
 class TextService;
 
 class LangBarButton:
-	public ITfLangBarItemButton,
-	public ITfSource {
+	public ComObject<ITfLangBarItemButton, ITfSource> {
 public:
 	LangBarButton(TextService* service, const GUID& guid, UINT commandId = 0, const wchar_t* text = NULL, DWORD style = TF_LBI_STYLE_BTN_BUTTON);
 
@@ -66,11 +66,6 @@ public:
 	void setStyle(DWORD style);
 
 	// COM-related stuff
-
-	// IUnknown
-	STDMETHODIMP QueryInterface(REFIID riid, void **ppvObj);
-	STDMETHODIMP_(ULONG) AddRef(void);
-	STDMETHODIMP_(ULONG) Release(void);
 
 	// ITfLangBarItem
 	STDMETHODIMP GetInfo(TF_LANGBARITEMINFO *pInfo);

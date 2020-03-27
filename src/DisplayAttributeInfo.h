@@ -21,10 +21,11 @@
 #define IME_DISPLAY_ATTRIBUTE_H
 
 #include <msctf.h>
+#include "ComObject.h"
 
 namespace Ime {
 
-class DisplayAttributeInfo : public ITfDisplayAttributeInfo {
+class DisplayAttributeInfo : public ComObject<ITfDisplayAttributeInfo> {
 public:
 	DisplayAttributeInfo(const GUID& guid);
 
@@ -89,11 +90,6 @@ public:
 	const GUID& guid() const {
 		return guid_;
 	}
-
-    // IUnknown
-    STDMETHODIMP QueryInterface(REFIID riid, void **ppvObj);
-    STDMETHODIMP_(ULONG) AddRef(void);
-    STDMETHODIMP_(ULONG) Release(void);
 
     // ITfDisplayAttributeInfo
     STDMETHODIMP GetGUID(GUID *pguid);

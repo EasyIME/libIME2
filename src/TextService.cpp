@@ -52,6 +52,8 @@ TextService::TextService(ImeModule* module):
 }
 
 TextService::~TextService(void) {
+    // ImeModule needs to do some clean up before deleting the TextService object.
+    module_->removeTextService(this);
 
 	// This should only happen in rare cases
 	if(!compartmentMonitors_.empty()) {
@@ -570,54 +572,6 @@ void TextService::onLangProfileDeactivated(REFGUID guidProfile) {
 }
 
 // COM stuff
-
-// IUnknown
-STDMETHODIMP TextService::QueryInterface(REFIID riid, void **ppvObj) {
-    if (ppvObj == NULL)
-        return E_INVALIDARG;
-	if(IsEqualIID(riid, IID_IUnknown) || IsEqualIID(riid, IID_ITfTextInputProcessor))
-		*ppvObj = (ITfTextInputProcessor*)this;
-	else if(IsEqualIID(riid, IID_ITfTextInputProcessorEx))
-		*ppvObj = (ITfTextInputProcessorEx*)this;
-	//else if(IsEqualIID(riid, IID_ITfThreadMgrEventSink))
-	//	*ppvObj = (ITfThreadMgrEventSink*)this;
-	else if(IsEqualIID(riid, IID_ITfTextEditSink))
-		*ppvObj = (ITfTextEditSink*)this;
-	else if(IsEqualIID(riid, IID_ITfKeyEventSink))
-		*ppvObj = (ITfKeyEventSink*)this;
-	else if(IsEqualIID(riid, IID_ITfCompositionSink))
-		*ppvObj = (ITfCompositionSink*)this;
-	else if(IsEqualIID(riid, IID_ITfCompartmentEventSink))
-		*ppvObj = (ITfCompartmentEventSink*)this;
-	else if(IsEqualIID(riid, IID_ITfLangBarEventSink))
-		*ppvObj = (ITfLangBarEventSink*)this;
-	else if(IsEqualIID(riid, IID_ITfActiveLanguageProfileNotifySink))
-		*ppvObj = (ITfActiveLanguageProfileNotifySink*)this;
-	else
-		*ppvObj = NULL;
-
-	if(*ppvObj) {
-		AddRef();
-		return S_OK;
-	}
-	return E_NOINTERFACE;
-}
-
-// IUnknown implementation
-STDMETHODIMP_(ULONG) TextService::AddRef(void) {
-	return ++refCount_;
-}
-
-STDMETHODIMP_(ULONG) TextService::Release(void) {
-	assert(refCount_ > 0);
-	const ULONG newCount = --refCount_;
-	if(0 == refCount_) {
-		// ImeModule needs to do some clean up before deleting the TextService object.
-		module_->removeTextService(this);
-		delete this;
-	}
-	return newCount;
-}
 
 // ITfTextInputProcessor
 STDMETHODIMP TextService::Activate(ITfThreadMgr *pThreadMgr, TfClientId tfClientId) {

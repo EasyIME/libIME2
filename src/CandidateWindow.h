@@ -23,6 +23,7 @@
 #include "ImeWindow.h"
 #include <string>
 #include <vector>
+#include "ComObject.h"
 
 namespace Ime {
 
@@ -33,14 +34,9 @@ class KeyEvent;
 // TODO: make the candidate window looks different in immersive mode
 class CandidateWindow :
 	public ImeWindow,
-	public ITfCandidateListUIElement {
+	public ComObject<ITfCandidateListUIElement> {
 public:
 	CandidateWindow(TextService* service, EditSession* session);
-
-	// IUnknown
-	STDMETHODIMP QueryInterface(REFIID riid, void **ppvObj);
-	STDMETHODIMP_(ULONG) AddRef(void);
-	STDMETHODIMP_(ULONG) Release(void);
 
 	// ITfUIElement
 	STDMETHODIMP GetDescription(BSTR *pbstrDescription);

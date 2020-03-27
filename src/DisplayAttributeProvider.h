@@ -23,13 +23,14 @@
 #include <msctf.h>
 #include <list>
 #include "ComPtr.h"
+#include "ComObject.h"
 
 namespace Ime {
 
 class ImeModule;
 class DisplayAttributeInfo;
 
-class DisplayAttributeProvider : public ITfDisplayAttributeProvider {
+class DisplayAttributeProvider : public ComObject<ITfDisplayAttributeProvider> {
 public:
 
 	friend class DisplayAttributeInfoEnum;
@@ -37,11 +38,6 @@ public:
 	DisplayAttributeProvider(ImeModule* module);
 
 	// COM stuff
-
-    // IUnknown
-    STDMETHODIMP QueryInterface(REFIID riid, void **ppvObj);
-	STDMETHODIMP_(ULONG) AddRef(void);
-	STDMETHODIMP_(ULONG) Release(void);
 
 	// ITfDisplayAttributeProvider
     STDMETHODIMP EnumDisplayAttributeInfo(IEnumTfDisplayAttributeInfo **ppEnum);

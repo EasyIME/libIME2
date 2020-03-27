@@ -26,6 +26,7 @@
 #include "KeyEvent.h"
 #include "ComPtr.h"
 #include "DisplayAttributeInfo.h"
+#include "ComObject.h"
 
 #include <vector>
 #include <list>
@@ -42,16 +43,18 @@ class ImeModule;
 class LangBarButton;
 
 class TextService:
-	// TSF interfaces
-	public ITfTextInputProcessorEx,
-	// event sinks
-	public ITfThreadMgrEventSink,
-	public ITfTextEditSink,
-	public ITfKeyEventSink,
-	public ITfCompositionSink,
-	public ITfCompartmentEventSink,
-	public ITfLangBarEventSink,
-	public ITfActiveLanguageProfileNotifySink {
+    public ComObject <
+        // TSF interfaces
+	    ITfTextInputProcessorEx,
+	    // event sinks
+	    ITfThreadMgrEventSink,
+	    ITfTextEditSink,
+	    ITfKeyEventSink,
+	    ITfCompositionSink,
+	    ITfCompartmentEventSink,
+	    ITfLangBarEventSink,
+	    ITfActiveLanguageProfileNotifySink
+    > {
 public:
 
 	enum CommandType { // used in onCommand()
@@ -188,11 +191,6 @@ public:
 	// COM related stuff
 public:
 	friend class DisplayAttributeInfoEnum;
-
-    // IUnknown
-    STDMETHODIMP QueryInterface(REFIID riid, void **ppvObj);
-	STDMETHODIMP_(ULONG) AddRef(void);
-	STDMETHODIMP_(ULONG) Release(void);
 
     // ITfTextInputProcessor
     STDMETHODIMP Activate(ITfThreadMgr *pThreadMgr, TfClientId tfClientId);

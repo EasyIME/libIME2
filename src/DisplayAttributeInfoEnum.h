@@ -24,20 +24,16 @@
 #include <list>
 #include "DisplayAttributeInfo.h"
 #include "ComPtr.h"
+#include "ComObject.h"
 
 namespace Ime {
 
 class DisplayAttributeProvider;
 
-class DisplayAttributeInfoEnum : public IEnumTfDisplayAttributeInfo {
+class DisplayAttributeInfoEnum : public ComObject<IEnumTfDisplayAttributeInfo> {
 public:
 	DisplayAttributeInfoEnum(DisplayAttributeProvider* provider);
 	DisplayAttributeInfoEnum(const DisplayAttributeInfoEnum& other);
-
-    // IUnknown
-    STDMETHODIMP QueryInterface(REFIID riid, void **ppvObj);
-    STDMETHODIMP_(ULONG) AddRef(void);
-    STDMETHODIMP_(ULONG) Release(void);
 
     // IEnumTfDisplayAttributeInfo
     STDMETHODIMP Clone(IEnumTfDisplayAttributeInfo **ppEnum);

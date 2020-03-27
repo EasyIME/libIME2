@@ -21,12 +21,13 @@
 #define IME_EDIT_SESSION_H
 
 #include <msctf.h>
+#include "ComObject.h"
 
 namespace Ime {
 
 class TextService;
 
-class EditSession: public ITfEditSession {
+class EditSession: public ComObject<ITfEditSession> {
 public:
 	EditSession(TextService* service, ITfContext* context);
 
@@ -43,11 +44,6 @@ public:
 	}
 
 	// COM stuff
-
-    // IUnknown
-    STDMETHODIMP QueryInterface(REFIID riid, void **ppvObj);
-	STDMETHODIMP_(ULONG) AddRef(void);
-	STDMETHODIMP_(ULONG) Release(void);
 
     // ITfEditSession
     virtual STDMETHODIMP DoEditSession(TfEditCookie ec);

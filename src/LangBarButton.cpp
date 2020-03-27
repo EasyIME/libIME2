@@ -188,38 +188,6 @@ void LangBarButton::setStyle(DWORD style) {
 
 // COM stuff
 
-// IUnknown
-STDMETHODIMP LangBarButton::QueryInterface(REFIID riid, void **ppvObj) {
-    if (ppvObj == NULL)
-        return E_INVALIDARG;
-
-	if(IsEqualIID(riid, IID_IUnknown) || IsEqualIID(riid, IID_ITfLangBarItem) || IsEqualIID(riid, IID_ITfLangBarItemButton))
-		*ppvObj = (ITfLangBarItemButton*)this;
-	else if(IsEqualIID(riid, IID_ITfSource))
-		*ppvObj = (ITfSource*)this;
-	else
-		*ppvObj = NULL;
-
-	if(*ppvObj) {
-		AddRef();
-		return S_OK;
-	}
-	return E_NOINTERFACE;
-}
-
-// IUnknown implementation
-STDMETHODIMP_(ULONG) LangBarButton::AddRef(void) {
-	return ++refCount_;
-}
-
-STDMETHODIMP_(ULONG) LangBarButton::Release(void) {
-	assert(refCount_ > 0);
-	const ULONG newCount = --refCount_;
-	if (0 == refCount_)
-		delete this;
-	return newCount;
-}
-
 // ITfLangBarItem
 STDMETHODIMP LangBarButton::GetInfo(TF_LANGBARITEMINFO *pInfo) {
 	*pInfo = info_;
