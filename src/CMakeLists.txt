@@ -4,7 +4,7 @@ add_definitions(
     /DUNICODE=1
 )
 
-add_library(libIME_static STATIC
+add_library(libIME2_static STATIC
     # Core TSF part
     ImeModule.cpp
     ImeModule.h
@@ -42,6 +42,6 @@ add_library(libIME_static STATIC
     CandidateWindow.cpp
 )
 
-target_link_libraries(libIME_static
+target_link_libraries(libIME2_static
     shlwapi.lib
 )
