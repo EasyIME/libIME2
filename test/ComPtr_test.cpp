@@ -7,7 +7,7 @@
 
 using ::testing::Return;
 
-class IUnknownMock : public Ime::ComObject<> {
+class IUnknownMock : public Ime::ComObject<IUnknown> {
 public:
     MOCK_METHOD(HRESULT, QueryInterface, (REFIID riid, void** ppvObject), (Calltype(STDMETHODCALLTYPE), override));
 };

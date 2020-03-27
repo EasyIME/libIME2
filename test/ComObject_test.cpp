@@ -36,7 +36,7 @@ TEST(TestIUnknownImpl, QueryInterface)
 
     IUnknown* ptr = nullptr;
     EXPECT_EQ(obj->QueryInterface(IID_IUnknown, reinterpret_cast<void**>(&ptr)), S_OK);
-    EXPECT_EQ(ptr, (IUnknown*)obj);
+    EXPECT_EQ(ptr, (void*)obj);
     EXPECT_EQ(obj->refCount(), 2);
     ptr->Release();
     EXPECT_EQ(obj->refCount(), 1);
@@ -74,7 +74,7 @@ TEST(TestIUnknownImpl, QueryInterfaceTSF)
     auto obj = new TestImpl();
     EXPECT_EQ(obj->refCount(), 1);
 
-    EXPECT_EQ(obj->QueryInterface(IID_IUnknown, nullptr), E_INVALIDARG);
+    EXPECT_EQ(obj->QueryInterface(IID_IUnknown, nullptr), E_POINTER);
     EXPECT_EQ(obj->refCount(), 1);
 
     ITfCompartmentEventSink* ptr = nullptr;
