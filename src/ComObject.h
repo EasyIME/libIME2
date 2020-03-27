@@ -15,8 +15,8 @@ namespace Ime {
 #pragma warning(disable:4584)
 
 // Common base class to implement COM objects.
-template <typename... Interfaces>
-class ComObject : public Interfaces... {
+template <typename First, typename... Interfaces>
+class ComObject : public First, public Interfaces... {
 public:
     ComObject() : refCount_{ 1 } {}
 
@@ -31,10 +31,12 @@ public:
             return E_POINTER;
         }
         if (riid == IID_IUnknown) {
-            *ppvObj = this;
+            // An explicit type casting here is required to ensure querying IUnknown
+            // always returns the same pointer. (This is required by COM).
+            *ppvObj = static_cast<First*>(this);
         }
         else {
-            *ppvObj = queryInterface<Interfaces...>(riid);
+            *ppvObj = queryInterface<First, Interfaces...>(riid);
         }
         if (*ppvObj) {
             AddRef();
