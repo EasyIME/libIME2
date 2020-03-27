@@ -32,8 +32,7 @@ LangBarButton::LangBarButton(TextService* service, const GUID& guid, UINT comman
 	commandId_(commandId),
 	menu_(NULL),
 	icon_(NULL),
-	status_(0),
-	refCount_(1) {
+	status_(0) {
 
 	assert(service && service->imeModule());
 

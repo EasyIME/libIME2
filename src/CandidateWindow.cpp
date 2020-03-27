@@ -34,7 +34,6 @@ namespace Ime {
 
 CandidateWindow::CandidateWindow(TextService* service, EditSession* session):
 	ImeWindow(service),
-	refCount_(1),
 	shown_(false),
 	candPerRow_(1),
 	textWidth_(0),

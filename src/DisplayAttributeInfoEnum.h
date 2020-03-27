@@ -45,7 +45,6 @@ protected: // COM object should not be deleted directly. calling Release() inste
 	virtual ~DisplayAttributeInfoEnum(void);
 
 private:
-	int refCount_;
 	std::list<DisplayAttributeInfo*>::iterator iterator_;
 	ComPtr<DisplayAttributeProvider> provider_;
 };

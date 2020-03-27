@@ -102,7 +102,6 @@ protected: // COM object should not be deleted directly. calling Release() inste
 	virtual ~DisplayAttributeInfo(void);
 
 private:
-	int refCount_;
 	TfGuidAtom atom_;
 	GUID guid_;
 	wchar_t* desc_;

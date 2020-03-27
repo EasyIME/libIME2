@@ -25,8 +25,7 @@
 namespace Ime {
 
 DisplayAttributeInfoEnum::DisplayAttributeInfoEnum(DisplayAttributeProvider* provider):
-	provider_(provider),
-	refCount_(1) {
+	provider_(provider) {
 	std::list<DisplayAttributeInfo*>& displayAttrInfos = provider_->imeModule_->displayAttrInfos();
 	iterator_ = displayAttrInfos.begin();
 }

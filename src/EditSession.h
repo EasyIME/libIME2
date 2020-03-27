@@ -56,7 +56,6 @@ protected:
 	ITfContext* context_;
 
 private:
-	long refCount_;
 	TfEditCookie editCookie_;
 };
 

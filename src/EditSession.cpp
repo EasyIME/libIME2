@@ -26,8 +26,7 @@ namespace Ime {
 EditSession::EditSession(TextService* service, ITfContext* context):
 	textService_(service),
 	context_(context),
-	editCookie_(0),
-	refCount_(1) {
+	editCookie_(0) {
 	if(textService_)
 		textService_->AddRef();
 	if(context_)

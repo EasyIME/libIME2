@@ -47,7 +47,6 @@ protected: // COM object should not be deleted directly. calling Release() inste
 	virtual ~DisplayAttributeProvider(void);
 
 private:
-	int refCount_;
 	ComPtr<ImeModule> imeModule_;
 };
 

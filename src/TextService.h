@@ -309,8 +309,6 @@ private:
 	std::vector<ComPtr<LangBarButton>> langBarButtons_;
 	std::vector<PreservedKey> preservedKeys_;
 	std::vector<CompartmentMonitor> compartmentMonitors_;
-
-	long refCount_; // reference counting
 };
 
 }

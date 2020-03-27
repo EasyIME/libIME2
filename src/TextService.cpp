@@ -45,8 +45,7 @@ TextService::TextService(ImeModule* module):
 	globalCompartmentEventSinkCookie_(TF_INVALID_COOKIE),
 	langBarSinkCookie_(TF_INVALID_COOKIE),
 	activateLanguageProfileNotifySinkCookie_(TF_INVALID_COOKIE),
-	composition_(NULL),
-	refCount_(1) {
+	composition_(NULL) {
 
 	addCompartmentMonitor(GUID_COMPARTMENT_KEYBOARD_OPENCLOSE, false);
 }

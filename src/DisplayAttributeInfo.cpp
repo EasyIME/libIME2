@@ -25,8 +25,7 @@ namespace Ime {
 DisplayAttributeInfo::DisplayAttributeInfo(const GUID& guid):
 	atom_(0),
 	guid_(guid),
-	desc_(NULL),
-	refCount_(1) {
+	desc_(NULL) {
 
 	Reset();
 }

@@ -97,7 +97,6 @@ private:
 	void buildITfMenu(ITfMenu* menu, HMENU templ);
 
 private:
-	int refCount_;
 	TextService* textService_;
 	TF_LANGBARITEMINFO info_;
 	UINT commandId_;
