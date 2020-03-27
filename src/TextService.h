@@ -43,18 +43,20 @@ class ImeModule;
 class LangBarButton;
 
 class TextService:
-    public ComObject <
-        // TSF interfaces
-	    ITfTextInputProcessorEx,
-	    // event sinks
-	    ITfThreadMgrEventSink,
-	    ITfTextEditSink,
-	    ITfKeyEventSink,
-	    ITfCompositionSink,
-	    ITfCompartmentEventSink,
-	    ITfLangBarEventSink,
-	    ITfActiveLanguageProfileNotifySink
-    > {
+	public ComObject <
+		// TSF interfaces
+		ITfTextInputProcessor,
+		ITfTextInputProcessorEx,
+		// event sinks
+		ITfThreadMgrEventSink,
+		ITfTextEditSink,
+		ITfKeyEventSink,
+		ITfCompositionSink,
+		ITfCompartmentEventSink,
+		ITfLangBarEventSink,
+		ITfActiveLanguageProfileNotifySink
+	> {
+
 public:
 
 	enum CommandType { // used in onCommand()
