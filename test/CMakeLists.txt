@@ -1,4 +1,4 @@
-include_directories(${CMAKE_SOURCE_DIR}/src)
+include_directories(${PROJECT_SOURCE_DIR}/src)
 
 add_executable(ComPtr_test ComPtr_test.cpp)
 target_link_libraries(ComPtr_test gtest_main gmock_main)
