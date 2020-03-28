@@ -34,7 +34,6 @@ DisplayAttributeProvider::DisplayAttributeProvider(ImeModule* module):
 DisplayAttributeProvider::~DisplayAttributeProvider(void) {
 }
 
-
 // COM stuff
 
 // ITfDisplayAttributeProvider
@@ -44,10 +43,7 @@ STDMETHODIMP DisplayAttributeProvider::EnumDisplayAttributeInfo(IEnumTfDisplayAt
 }
 
 STDMETHODIMP DisplayAttributeProvider::GetDisplayAttributeInfo(REFGUID guidInfo, ITfDisplayAttributeInfo **ppInfo) {
-	list<DisplayAttributeInfo*>& displayAttrInfos = imeModule_->displayAttrInfos();
-	list<DisplayAttributeInfo*>::iterator it;
-	for(it = displayAttrInfos.begin(); it != displayAttrInfos.end(); ++it) {
-		DisplayAttributeInfo* info = *it;
+	for(auto& info: imeModule_->displayAttrInfos()) {
 		if(::IsEqualGUID(info->guid(), guidInfo)) {
 			*ppInfo = info;
 			info->AddRef();

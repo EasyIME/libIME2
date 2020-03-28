@@ -26,6 +26,7 @@
 #include "KeyEvent.h"
 #include "ComPtr.h"
 #include "DisplayAttributeInfo.h"
+#include "DisplayAttributeProvider.h"
 #include "ComObject.h"
 
 #include <vector>
@@ -46,6 +47,7 @@ class TextService:
 	public ComObject <
 		// TSF interfaces
         ComInterface<ITfTextInputProcessorEx, ITfTextInputProcessor>,
+        ComInterface<ITfDisplayAttributeProvider>,
 		// event sinks
         ComInterface<ITfThreadMgrEventSink>,
         ComInterface<ITfTextEditSink>,
@@ -200,6 +202,10 @@ public:
 	// ITfTextInputProcessorEx
 	STDMETHODIMP ActivateEx(ITfThreadMgr *ptim, TfClientId tid, DWORD dwFlags);
 
+    // ITfDisplayAttributeProvider
+    STDMETHODIMP EnumDisplayAttributeInfo(IEnumTfDisplayAttributeInfo** ppEnum) override;
+    STDMETHODIMP GetDisplayAttributeInfo(REFGUID guid, ITfDisplayAttributeInfo** ppInfo) override;
+
     // ITfThreadMgrEventSink
     STDMETHODIMP OnInitDocumentMgr(ITfDocumentMgr *pDocMgr);
     STDMETHODIMP OnUninitDocumentMgr(ITfDocumentMgr *pDocMgr);
@@ -259,6 +265,7 @@ protected: // COM object should not be deleted directly. calling Release() inste
 
 private:
 	ComPtr<ImeModule> module_;
+    ComPtr< ITfDisplayAttributeProvider> displayAttributeProvider_;
 	ComPtr<ITfThreadMgr> threadMgr_;
 	TfClientId clientId_;
 	DWORD activateFlags_;

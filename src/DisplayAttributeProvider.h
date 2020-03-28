@@ -35,7 +35,7 @@ public:
 
 	friend class DisplayAttributeInfoEnum;
 
-	DisplayAttributeProvider(ImeModule* module);
+    DisplayAttributeProvider(ImeModule* module);
 
 	// COM stuff
 

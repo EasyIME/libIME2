@@ -34,6 +34,7 @@ namespace Ime {
 
 TextService::TextService(ImeModule* module):
 	module_(module),
+    displayAttributeProvider_{ComPtr<DisplayAttributeProvider>::make(module)},
 	threadMgr_(NULL),
 	clientId_(TF_CLIENTID_NULL),
 	activateFlags_(0),
@@ -750,6 +751,15 @@ STDMETHODIMP TextService::Deactivate() {
 STDMETHODIMP TextService::ActivateEx(ITfThreadMgr *ptim, TfClientId tid, DWORD dwFlags) {
 	Activate(ptim, tid);
 	return S_OK;
+}
+
+// ITfDisplayAttributeProvider
+STDMETHODIMP TextService::EnumDisplayAttributeInfo(IEnumTfDisplayAttributeInfo** ppEnum) {
+    return displayAttributeProvider_->EnumDisplayAttributeInfo(ppEnum);
+}
+
+STDMETHODIMP TextService::GetDisplayAttributeInfo(REFGUID guid, ITfDisplayAttributeInfo** ppInfo) {
+    return displayAttributeProvider_->GetDisplayAttributeInfo(guid, ppInfo);
 }
 
 // ITfThreadMgrEventSink

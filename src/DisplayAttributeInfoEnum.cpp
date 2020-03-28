@@ -26,7 +26,7 @@ namespace Ime {
 
 DisplayAttributeInfoEnum::DisplayAttributeInfoEnum(ComPtr<DisplayAttributeProvider> provider):
 	provider_(std::move(provider)) {
-	std::list<DisplayAttributeInfo*>& displayAttrInfos = provider_->imeModule_->displayAttrInfos();
+	auto displayAttrInfos = provider_->imeModule_->displayAttrInfos();
 	iterator_ = displayAttrInfos.begin();
 }
 
@@ -42,9 +42,9 @@ STDMETHODIMP DisplayAttributeInfoEnum::Clone(IEnumTfDisplayAttributeInfo **ppEnu
 STDMETHODIMP DisplayAttributeInfoEnum::Next(ULONG ulCount, ITfDisplayAttributeInfo **rgInfo, ULONG *pcFetched) {
 	ULONG n = 0;
     if (rgInfo != nullptr) {
-        std::list<DisplayAttributeInfo*>& displayAttrInfos = provider_->imeModule_->displayAttrInfos();
+        auto& displayAttrInfos = provider_->imeModule_->displayAttrInfos();
         for (; n < ulCount && iterator_ != displayAttrInfos.end(); ++n, ++iterator_) {
-            DisplayAttributeInfo* info = *iterator_;
+            auto& info = *iterator_;
             info->AddRef();
             rgInfo[n] = info;
         }
@@ -56,15 +56,18 @@ STDMETHODIMP DisplayAttributeInfoEnum::Next(ULONG ulCount, ITfDisplayAttributeIn
 }
 
 STDMETHODIMP DisplayAttributeInfoEnum::Reset() {
-	std::list<DisplayAttributeInfo*>& displayAttrInfos = provider_->imeModule_->displayAttrInfos();
+	auto& displayAttrInfos = provider_->imeModule_->displayAttrInfos();
 	iterator_ = displayAttrInfos.begin();
 	return S_OK;
 }
 
 STDMETHODIMP DisplayAttributeInfoEnum::Skip(ULONG ulCount) {
-	std::list<DisplayAttributeInfo*>& displayAttrInfos = provider_->imeModule_->displayAttrInfos();
-	if(iterator_ != displayAttrInfos.end())
-		++iterator_;
+	auto& displayAttrInfos = provider_->imeModule_->displayAttrInfos();
+    ULONG n = 0;
+    while (n < ulCount && iterator_ != displayAttrInfos.end()) {
+        ++iterator_;
+        ++n;
+    }
 	return S_OK;
 }
 

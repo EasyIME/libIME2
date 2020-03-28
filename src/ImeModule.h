@@ -24,8 +24,9 @@
 #include <Windows.h>
 #include <Ctffunc.h>
 #include <list>
-#include "WindowsVersion.h"
 #include <string>
+#include "WindowsVersion.h"
+#include "ComPtr.h"
 
 namespace Ime {
 
@@ -82,7 +83,7 @@ public:
 	virtual bool onConfigure(HWND hwndParent, LANGID langid, REFGUID rguidProfile);
 
 	// display attributes for composition string
-	std::list<DisplayAttributeInfo*>& displayAttrInfos() {
+	std::list<ComPtr<DisplayAttributeInfo>>& displayAttrInfos() {
 		return displayAttrInfos_;
 	}
 
@@ -130,8 +131,8 @@ private:
 	wchar_t* tooltip_;
 
 	// display attributes
-	std::list<DisplayAttributeInfo*> displayAttrInfos_; // display attribute info
-	DisplayAttributeInfo* inputAttrib_;
+	std::list< ComPtr<DisplayAttributeInfo>> displayAttrInfos_; // display attribute info
+	ComPtr<DisplayAttributeInfo> inputAttrib_;
 	// DisplayAttributeInfo* convertedAttrib_;
 
 	WindowsVersion winVer_;
