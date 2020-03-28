@@ -27,7 +27,7 @@ namespace Ime {
 
 class TextService;
 
-class EditSession: public ComObject<ITfEditSession> {
+class EditSession: public ComObject<ComInterface<ITfEditSession>> {
 public:
 	EditSession(TextService* service, ITfContext* context);
 

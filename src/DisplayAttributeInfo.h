@@ -25,7 +25,7 @@
 
 namespace Ime {
 
-class DisplayAttributeInfo : public ComObject<ITfDisplayAttributeInfo> {
+class DisplayAttributeInfo: public ComObject<ComInterface<ITfDisplayAttributeInfo>> {
 public:
 	DisplayAttributeInfo(const GUID& guid);
 

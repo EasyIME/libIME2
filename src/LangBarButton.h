@@ -32,7 +32,10 @@ namespace Ime {
 class TextService;
 
 class LangBarButton:
-	public ComObject<ITfLangBarItemButton, ITfSource> {
+	public ComObject<
+        ComInterface<ITfLangBarItemButton, ITfLangBarItem>,
+        ComInterface<ITfSource>
+    > {
 public:
 	LangBarButton(TextService* service, const GUID& guid, UINT commandId = 0, const wchar_t* text = NULL, DWORD style = TF_LBI_STYLE_BTN_BUTTON);
 

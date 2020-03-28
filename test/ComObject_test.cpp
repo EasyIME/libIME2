@@ -15,7 +15,10 @@ interface __declspec(uuid("31C548DD-7FD8-4380-BBD4-2F4F47F0BC0D")) Interface2 : 
 
 TEST(TestIUnknownImpl, RefCounts)
 {
-    auto obj = new Ime::ComObject<Interface1, Interface2>();
+    auto obj = new Ime::ComObject<
+        Ime::ComInterface<Interface1>,
+        Ime::ComInterface<Interface2>
+    >();
     EXPECT_EQ(obj->refCount(), 1);
 
     EXPECT_EQ(obj->AddRef(), 2);
@@ -31,7 +34,10 @@ TEST(TestIUnknownImpl, RefCounts)
 
 TEST(TestIUnknownImpl, QueryInterface)
 {
-    auto obj = new Ime::ComObject<Interface1, Interface2>();
+    auto obj = new Ime::ComObject<
+        Ime::ComInterface<Interface1>,
+        Ime::ComInterface<Interface2>
+    >();
     EXPECT_EQ(obj->refCount(), 1);
 
     IUnknown* ptr = nullptr;
@@ -60,7 +66,9 @@ TEST(TestIUnknownImpl, QueryInterface)
 
 TEST(TestIUnknownImpl, QueryInterfaceTSF)
 {
-    class TestImpl : public Ime::ComObject<ITfCompartmentEventSink > {
+    class TestImpl : public Ime::ComObject<
+        Ime::ComInterface<ITfCompartmentEventSink>
+    > {
     public:
         MOCK_METHOD(HRESULT, OnChange, (REFGUID rguid), (Calltype(STDMETHODCALLTYPE), override));
 

@@ -5,18 +5,28 @@
 
 namespace Ime {
 
-// When the Interfaces list contains some COM interfaces which are the bases of the others,
-// this can trigger warning C4584: base-class 'IXXX' is already a base-class.
-// In COM, all these interface classes have no implementations and only provide a vtable.
-// So having duplicated instances of base classes is quite cheap. We only wasted space of
-// some duplicated function pointers in the vtables. So we ignore this warning.
-// This is a tradeoff since if you don't list the base classes, QueryInterface for them
-// based on variadic template won't work.
-#pragma warning(disable:4584)
+template <typename Base, typename... Interfaces>
+class ComInterface: public Base {
+protected:
+    void* queryInterface(REFIID riid) {
+        return queryInterfaceHelper<Base, Interfaces...>(riid);
+    }
 
-// Common base class to implement COM objects.
-template <typename First, typename... Interfaces>
-class ComObject : public First, public Interfaces... {
+private:
+    template <typename T>
+    void* queryInterfaceHelper(REFIID riid) {
+        return riid == __uuidof(T) ? static_cast<T*>(this) : nullptr;
+    }
+
+    template <typename T, typename U, typename... Args>
+    void* queryInterfaceHelper(REFIID riid) {
+        return riid == __uuidof(T) ? static_cast<T*>(this) : queryInterfaceHelper<U, Args...>(riid);
+    }
+};
+
+
+template <typename FirstInterface, typename... ComInterfaces>
+class ComObject : public FirstInterface, public ComInterfaces... {
 public:
     ComObject() : refCount_{ 1 } {}
 
@@ -33,10 +43,10 @@ public:
         if (riid == IID_IUnknown) {
             // An explicit type casting here is required to ensure querying IUnknown
             // always returns the same pointer. (This is required by COM).
-            *ppvObj = static_cast<First*>(this);
+            *ppvObj = static_cast<FirstInterface*>(this);
         }
         else {
-            *ppvObj = queryInterface<First, Interfaces...>(riid);
+            *ppvObj = queryInterfaceHelper<FirstInterface, ComInterfaces...>(riid);
         }
         if (*ppvObj) {
             AddRef();
@@ -57,23 +67,21 @@ public:
         }
         return newCount;
     }
-
 private:
 
     template <typename T>
-    void* queryInterface(REFIID riid) {
-        return riid == __uuidof(T) ? static_cast<T*>(this) : nullptr;
+    void* queryInterfaceHelper(REFIID riid) {
+        return T::queryInterface(riid);
     }
 
     template <typename T, typename U, typename... Args>
-    void* queryInterface(REFIID riid) {
-        return riid == __uuidof(T) ? static_cast<T*>(this) : queryInterface<U, Args...>(riid);
+    void* queryInterfaceHelper(REFIID riid) {
+        auto result = T::queryInterface(riid);
+        return result ? result : queryInterfaceHelper<U, Args...>(riid);
     }
 
 private:
     int refCount_;
 };
-
-#pragma warning(default:4584)
 
 } // namespace Ime

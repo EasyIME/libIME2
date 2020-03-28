@@ -32,9 +32,9 @@ class EditSession;
 class KeyEvent;
 
 // TODO: make the candidate window looks different in immersive mode
-class CandidateWindow :
+class CandidateWindow:
 	public ImeWindow,
-	public ComObject<ITfCandidateListUIElement> {
+	public ComObject<ComInterface<ITfCandidateListUIElement>> {
 public:
 	CandidateWindow(TextService* service, EditSession* session);
 

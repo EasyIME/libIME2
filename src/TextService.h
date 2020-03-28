@@ -45,16 +45,15 @@ class LangBarButton;
 class TextService:
 	public ComObject <
 		// TSF interfaces
-		ITfTextInputProcessor,
-		ITfTextInputProcessorEx,
+        ComInterface<ITfTextInputProcessorEx, ITfTextInputProcessor>,
 		// event sinks
-		ITfThreadMgrEventSink,
-		ITfTextEditSink,
-		ITfKeyEventSink,
-		ITfCompositionSink,
-		ITfCompartmentEventSink,
-		ITfLangBarEventSink,
-		ITfActiveLanguageProfileNotifySink
+        ComInterface<ITfThreadMgrEventSink>,
+        ComInterface<ITfTextEditSink>,
+        ComInterface<ITfKeyEventSink>,
+        ComInterface<ITfCompositionSink>,
+        ComInterface<ITfCompartmentEventSink>,
+        ComInterface<ITfLangBarEventSink>,
+        ComInterface<ITfActiveLanguageProfileNotifySink>
 	> {
 
 public:

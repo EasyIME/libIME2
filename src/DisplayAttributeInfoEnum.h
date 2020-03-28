@@ -30,7 +30,7 @@ namespace Ime {
 
 class DisplayAttributeProvider;
 
-class DisplayAttributeInfoEnum : public ComObject<IEnumTfDisplayAttributeInfo> {
+class DisplayAttributeInfoEnum: public ComObject<ComInterface<IEnumTfDisplayAttributeInfo>> {
 public:
 	DisplayAttributeInfoEnum(DisplayAttributeProvider* provider);
 	DisplayAttributeInfoEnum(const DisplayAttributeInfoEnum& other);

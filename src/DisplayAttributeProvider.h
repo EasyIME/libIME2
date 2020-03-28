@@ -30,7 +30,7 @@ namespace Ime {
 class ImeModule;
 class DisplayAttributeInfo;
 
-class DisplayAttributeProvider : public ComObject<ITfDisplayAttributeProvider> {
+class DisplayAttributeProvider : public ComObject<ComInterface<ITfDisplayAttributeProvider>> {
 public:
 
 	friend class DisplayAttributeInfoEnum;
