@@ -17,10 +17,10 @@
 //	Boston, MA  02110-1301, USA.
 //
 
-#ifndef IME_DISPLAY_ATTRIBUTE_H
-#define IME_DISPLAY_ATTRIBUTE_H
+#pragma once
 
 #include <msctf.h>
+#include <string>
 #include "ComObject.h"
 
 namespace Ime {
@@ -28,8 +28,6 @@ namespace Ime {
 class DisplayAttributeInfo: public ComObject<ComInterface<ITfDisplayAttributeInfo>> {
 public:
 	DisplayAttributeInfo(const GUID& guid);
-
-	// public methods
 
 	void setAtom(TfGuidAtom atom) {
 		atom_ = atom;
@@ -44,7 +42,7 @@ public:
 		attrib_.crText.cr = color;
 	}
 
-	void setTextColor(int index) {
+	void setTextSysColor(int index) {
 		attrib_.crText.type = TF_CT_SYSCOLOR;
 		attrib_.crText.nIndex = index;
 	}
@@ -54,7 +52,7 @@ public:
 		attrib_.crBk.cr = color;
 	}
 
-	void setBackgroundColor(int index) {
+	void setBackgroundSysColor(int index) {
 		attrib_.crBk.type = TF_CT_SYSCOLOR;
 		attrib_.crBk.nIndex = index;
 	}
@@ -64,7 +62,7 @@ public:
 		attrib_.crLine.cr = color;
 	}
 
-	void setLineColor(int index) {
+	void setLineSysColor(int index) {
 		attrib_.crLine.type = TF_CT_SYSCOLOR;
 		attrib_.crLine.nIndex = index;
 	}
@@ -81,10 +79,8 @@ public:
 		attrib_.bAttr = attr;
 	}
 
-	void setDescription(wchar_t* desc) {
-		if(desc_)
-			free(desc_);
-		desc_ = _wcsdup(desc);
+	void setDescription(std::wstring desc) {
+		desc_ = std::move(desc);
 	}
 
 	const GUID& guid() const {
@@ -104,10 +100,8 @@ protected: // COM object should not be deleted directly. calling Release() inste
 private:
 	TfGuidAtom atom_;
 	GUID guid_;
-	wchar_t* desc_;
+	std::wstring desc_;
 	TF_DISPLAYATTRIBUTE attrib_;
 };
 
 }
-
-#endif

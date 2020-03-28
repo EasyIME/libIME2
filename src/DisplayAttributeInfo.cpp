@@ -1,5 +1,5 @@
 //
-//	Copyright (C) 2013 Hong Jen Yee (PCMan) <pcman.tw@gmail.com>
+//	Copyright (C) 2013 - 2020 Hong Jen Yee (PCMan) <pcman.tw@gmail.com>
 //
 //	This library is free software; you can redistribute it and/or
 //	modify it under the terms of the GNU Library General Public
@@ -24,17 +24,13 @@ namespace Ime {
 
 DisplayAttributeInfo::DisplayAttributeInfo(const GUID& guid):
 	atom_(0),
-	guid_(guid),
-	desc_(NULL) {
+	guid_(guid) {
 
 	Reset();
 }
 
 DisplayAttributeInfo::~DisplayAttributeInfo(void) {
-	if(desc_)
-		free(desc_);
 }
-
 
 // COM stuff
 
@@ -45,12 +41,8 @@ STDMETHODIMP DisplayAttributeInfo::GetGUID(GUID *pguid) {
 }
 
 STDMETHODIMP DisplayAttributeInfo::GetDescription(BSTR *pbstrDesc) {
-	if(desc_) {
-		*pbstrDesc = ::SysAllocString(desc_);
-		return S_OK;
-	}
-	*pbstrDesc = NULL;
-	return E_FAIL;
+	*pbstrDesc = ::SysAllocString(desc_.c_str());
+	return *pbstrDesc ? S_OK : E_FAIL;
 }
 
 STDMETHODIMP DisplayAttributeInfo::GetAttributeInfo(TF_DISPLAYATTRIBUTE *ptfDisplayAttr) {
