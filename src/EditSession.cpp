@@ -23,27 +23,21 @@
 
 namespace Ime {
 
-EditSession::EditSession(TextService* service, ITfContext* context):
-	textService_(service),
-	context_(context),
-	editCookie_(0) {
-	if(textService_)
-		textService_->AddRef();
-	if(context_)
-		context_->AddRef();
+EditSession::EditSession(ComPtr<ITfContext> context, std::function<void(EditSession*, TfEditCookie)>&& callback):
+    context_{std::move(context)},
+    editCookie_{0},
+    callback_{std::move(callback)} {
 }
 
 EditSession::~EditSession(void) {
-	if(textService_)
-		textService_->Release();
-	if(context_)
-		context_->Release();
 }
 
 // COM stuff
 
 STDMETHODIMP EditSession::DoEditSession(TfEditCookie ec) {
 	editCookie_ = ec;
+    callback_(this, ec);
+    editCookie_ = 0;
 	return S_OK;
 }
 

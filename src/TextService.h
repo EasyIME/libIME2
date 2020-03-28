@@ -236,39 +236,9 @@ public:
 	STDMETHODIMP OnActivated(REFCLSID clsid, REFGUID guidProfile, BOOL fActivated);
 
 protected:
-	// edit session classes, used with TSF
-	class KeyEditSession: public EditSession {
-	public:
-		KeyEditSession(TextService* service, ITfContext* context, KeyEvent& keyEvent):
-			EditSession(service, context),
-			keyEvent_(keyEvent),
-			result_(false) {
-		}
-		STDMETHODIMP DoEditSession(TfEditCookie ec);
 
-		KeyEvent keyEvent_;
-		bool result_;
-	};
-
-	class StartCompositionEditSession: public EditSession {
-	public:
-		StartCompositionEditSession(TextService* service, ITfContext* context):
-			EditSession(service, context){
-		}
-		STDMETHODIMP DoEditSession(TfEditCookie ec);
-	};
-
-	class EndCompositionEditSession: public EditSession {
-	public:
-		EndCompositionEditSession(TextService* service, ITfContext* context):
-			EditSession(service, context){
-		}
-		STDMETHODIMP DoEditSession(TfEditCookie ec);
-	};
-
-	HRESULT doKeyEditSession(TfEditCookie cookie, KeyEditSession* session);
-	HRESULT doStartCompositionEditSession(TfEditCookie cookie, StartCompositionEditSession* session);
-	HRESULT doEndCompositionEditSession(TfEditCookie cookie, EndCompositionEditSession* session);
+	HRESULT doStartCompositionEditSession(TfEditCookie cookie, ITfContext* context);
+	HRESULT doEndCompositionEditSession(TfEditCookie cookie, ITfContext* context);
 
 	struct PreservedKey : public TF_PRESERVEDKEY {
 		GUID guid;

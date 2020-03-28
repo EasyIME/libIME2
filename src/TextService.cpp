@@ -218,17 +218,25 @@ bool TextService::isInsertionAllowed(EditSession* session) {
 void TextService::startComposition(ITfContext* context) {
 	assert(context);
 	HRESULT sessionResult;
-	StartCompositionEditSession* session = new StartCompositionEditSession(this, context);
+    auto session = ComPtr<EditSession>::make(
+        context,
+        [=](EditSession* session, TfEditCookie cookie) {
+            doStartCompositionEditSession(cookie, context);
+        }
+    );
 	context->RequestEditSession(clientId_, session, TF_ES_SYNC|TF_ES_READWRITE, &sessionResult);
-	session->Release();
 }
 
 void TextService::endComposition(ITfContext* context) {
 	assert(context);
 	HRESULT sessionResult;
-	EndCompositionEditSession* session = new EndCompositionEditSession(this, context);
-	context->RequestEditSession(clientId_, session, TF_ES_SYNC|TF_ES_READWRITE, &sessionResult);
-	session->Release();
+    auto session = ComPtr<EditSession>::make(
+        context,
+        [=](EditSession* session, TfEditCookie cookie) {
+            doEndCompositionEditSession(cookie, context);
+        }
+    );
+    context->RequestEditSession(clientId_, session, TF_ES_SYNC|TF_ES_READWRITE, &sessionResult);
 }
 
 std::wstring TextService::compositionString(EditSession* session) {
@@ -841,14 +849,16 @@ STDMETHODIMP TextService::OnKeyDown(ITfContext *pContext, WPARAM wParam, LPARAM 
 			// KeyEditSession::DoEditSession will be called, which in turns
 			// call back to TextService::doKeyEditSession().
 			// So the real key handling is relayed to TextService::doKeyEditSession().
-			KeyEditSession* session = new KeyEditSession(this, pContext, keyEvent);
-
+            auto session = ComPtr<EditSession>::make(
+                pContext,
+                [&](EditSession* session, TfEditCookie cookie) {
+                    *pfEaten = onKeyDown(keyEvent, session);
+                }
+            );
 			// We use TF_ES_SYNC here, so the request becomes synchronus and blocking.
 			// KeyEditSession::DoEditSession() and TextService::doKeyEditSession() will be
 			// called before RequestEditSession() returns.
 			pContext->RequestEditSession(clientId_, session, TF_ES_SYNC|TF_ES_READWRITE, &sessionResult);
-			*pfEaten = session->result_; // tell TSF if we handled the key
-			session->Release();
 		}
 	}
 	return S_OK;
@@ -874,10 +884,13 @@ STDMETHODIMP TextService::OnKeyUp(ITfContext *pContext, WPARAM wParam, LPARAM lP
 		*pfEaten = (BOOL)filterKeyUp(keyEvent);
 		if(*pfEaten) {
 			HRESULT sessionResult;
-			KeyEditSession* session = new KeyEditSession(this, pContext, keyEvent);
-			pContext->RequestEditSession(clientId_, session, TF_ES_SYNC|TF_ES_READWRITE, &sessionResult);
-			*pfEaten = session->result_; // tell TSF if we handled the key
-			session->Release();
+            auto session = ComPtr<EditSession>::make(
+                pContext,
+                [&](EditSession* session, TfEditCookie cookie) {
+                    *pfEaten = onKeyUp(keyEvent, session);
+                }
+            );
+            pContext->RequestEditSession(clientId_, session, TF_ES_SYNC|TF_ES_READWRITE, &sessionResult);
 		}
 	}
 	return S_OK;
@@ -963,36 +976,8 @@ STDMETHODIMP TextService::OnActivated(REFCLSID clsid, REFGUID guidProfile, BOOL 
 	return S_OK;
 }
 
-// edit session handling
-STDMETHODIMP TextService::KeyEditSession::DoEditSession(TfEditCookie ec) {
-	EditSession::DoEditSession(ec);
-	return textService_->doKeyEditSession(ec, this);
-}
-
-// edit session handling
-STDMETHODIMP TextService::StartCompositionEditSession::DoEditSession(TfEditCookie ec) {
-	EditSession::DoEditSession(ec);
-	return textService_->doStartCompositionEditSession(ec, this);
-}
-
-// edit session handling
-STDMETHODIMP TextService::EndCompositionEditSession::DoEditSession(TfEditCookie ec) {
-	EditSession::DoEditSession(ec);
-	return textService_->doEndCompositionEditSession(ec, this);
-}
-
-// callback from edit session of key events
-HRESULT TextService::doKeyEditSession(TfEditCookie cookie, KeyEditSession* session) {
-	if(session->keyEvent_.type() == WM_KEYDOWN)
-		session->result_ = onKeyDown(session->keyEvent_, session);
-	else if(session->keyEvent_.type() == WM_KEYUP)
-		session->result_ = onKeyUp(session->keyEvent_, session);
-	return S_OK;
-}
-
 // callback from edit session for starting composition
-HRESULT TextService::doStartCompositionEditSession(TfEditCookie cookie, StartCompositionEditSession* session) {
-	ITfContext* context = session->context();
+HRESULT TextService::doStartCompositionEditSession(TfEditCookie cookie, ITfContext* context) {
 	ITfContextComposition* contextComposition;
 	if(context->QueryInterface(IID_ITfContextComposition, (void**)&contextComposition) == S_OK) {
 		// get current insertion point in the current context
@@ -1024,23 +1009,23 @@ HRESULT TextService::doStartCompositionEditSession(TfEditCookie cookie, StartCom
 }
 
 // callback from edit session for ending composition
-HRESULT TextService::doEndCompositionEditSession(TfEditCookie cookie, EndCompositionEditSession* session) {
+HRESULT TextService::doEndCompositionEditSession(TfEditCookie cookie, ITfContext* context) {
 	if(composition_) {
 		// move current insertion point to end of the composition string
 		ITfRange* compositionRange;
 		if(composition_->GetRange(&compositionRange) == S_OK) {
 			// clear display attribute for the composition range
 			ComPtr<ITfProperty> dispAttrProp;
-			if(session->context()->GetProperty(GUID_PROP_ATTRIBUTE, &dispAttrProp) == S_OK) {
+			if(context->GetProperty(GUID_PROP_ATTRIBUTE, &dispAttrProp) == S_OK) {
 				dispAttrProp->Clear(cookie, compositionRange);
 			}
 
 			TF_SELECTION selection;
 			ULONG selectionNum;
-			if(session->context()->GetSelection(cookie, TF_DEFAULT_SELECTION, 1, &selection, &selectionNum) == S_OK) {
+			if(context->GetSelection(cookie, TF_DEFAULT_SELECTION, 1, &selection, &selectionNum) == S_OK) {
 				selection.range->ShiftEndToRange(cookie, compositionRange, TF_ANCHOR_END);
 				selection.range->Collapse(cookie, TF_ANCHOR_END);
-				session->context()->SetSelection(cookie, 1, &selection);
+				context->SetSelection(cookie, 1, &selection);
 				selection.range->Release();
 			}
 			compositionRange->Release();

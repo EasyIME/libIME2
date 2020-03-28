@@ -21,7 +21,9 @@
 #define IME_EDIT_SESSION_H
 
 #include <msctf.h>
+#include <functional>
 #include "ComObject.h"
+#include "ComPtr.h"
 
 namespace Ime {
 
@@ -29,21 +31,17 @@ class TextService;
 
 class EditSession: public ComObject<ComInterface<ITfEditSession>> {
 public:
-	EditSession(TextService* service, ITfContext* context);
+	EditSession(ComPtr<ITfContext> context, std::function<void(EditSession*, TfEditCookie)>&& callback);
 
-	TextService* textService() {
-		return textService_;
-	}
+    const ComPtr<ITfContext>& context() const {
+        return context_;
+    }
 
-	ITfContext* context() {
-		return context_;
-	}
+    TfEditCookie editCookie() const {
+        return editCookie_;
+    }
 
-	TfEditCookie editCookie() {
-		return editCookie_;
-	}
-
-	// COM stuff
+    // COM stuff
 
     // ITfEditSession
     virtual STDMETHODIMP DoEditSession(TfEditCookie ec);
@@ -51,12 +49,10 @@ public:
 protected: // COM object should not be deleted directly. calling Release() instead.
 	virtual ~EditSession(void);
 
-protected:
-	TextService* textService_;
-	ITfContext* context_;
-
 private:
+    ComPtr<ITfContext> context_;
 	TfEditCookie editCookie_;
+    std::function<void(EditSession*, TfEditCookie)> callback_;
 };
 
 }
