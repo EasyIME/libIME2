@@ -22,10 +22,10 @@
 
 #include <Unknwn.h>
 #include <Windows.h>
+
 #include <Ctffunc.h>
 #include <string>
 #include <list>
-#include "WindowsVersion.h"
 #include "ComPtr.h"
 #include "ComObject.h"
 #include <mutex>
@@ -60,14 +60,6 @@ public:
 
 	const CLSID& textServiceClsid() const {
 		return textServiceClsid_;
-	}
-
-	bool isWindows8Above() {
-		return winVer_.isWindows8Above();
-	}
-
-	WindowsVersion windowsVersion() const {
-		return winVer_;
 	}
 
 	// Dll entry points implementations
@@ -131,8 +123,6 @@ private:
 	std::list< ComPtr<DisplayAttributeInfo>> displayAttrInfos_;
 	ComPtr<DisplayAttributeInfo> inputAttrib_;
 	// DisplayAttributeInfo* convertedAttrib_;
-
-	WindowsVersion winVer_;
 };
 
 }

@@ -26,6 +26,8 @@
 #include <Shlwapi.h>
 #include <ShlObj.h>
 #include <assert.h>
+#include <VersionHelpers.h>  // Provided by Windows SDK >= 8.1
+
 #include "Window.h"
 #include "TextService.h"
 #include "DisplayAttributeProvider.h"
@@ -308,7 +310,7 @@ HRESULT ImeModule::registerServer(wchar_t* imeName, LangProfileInfo* langs, int 
 				result  = E_FAIL;
 			}
 
-			if(isWindows8Above()) {
+			if(::IsWindows8OrGreater()) {
 				// for Windows 8 store app support
 				// TODO: according to a exhaustive Google search, I found that
 				// TF_IPP_CAPS_IMMERSIVESUPPORT is required to make the IME work with Windows 8.
@@ -348,7 +350,7 @@ HRESULT ImeModule::unregisterServer() {
 		// UI less mode
 		categoryMgr->UnregisterCategory(textServiceClsid_, GUID_TFCAT_TIPCAP_INPUTMODECOMPARTMENT, textServiceClsid_);
 
-		if(isWindows8Above()) {
+		if(::IsWindows8OrGreater()) {
 			// Windows 8 support
 			categoryMgr->UnregisterCategory(textServiceClsid_, GUID_TFCAT_TIPCAP_IMMERSIVESUPPORT, textServiceClsid_);
 			categoryMgr->RegisterCategory(textServiceClsid_, GUID_TFCAT_TIPCAP_SYSTRAYSUPPORT, textServiceClsid_);

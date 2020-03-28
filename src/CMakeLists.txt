@@ -28,7 +28,6 @@ add_library(libIME2_static STATIC
     Utils.h
     ComPtr.h
     ComObject.h
-	WindowsVersion.h
     # GUI-related code
     DrawUtils.h
     DrawUtils.cpp
