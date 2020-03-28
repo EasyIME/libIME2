@@ -1,20 +1,20 @@
 //
-//	Copyright (C) 2013 Hong Jen Yee (PCMan) <pcman.tw@gmail.com>
+//    Copyright (C) 2013 - 2020 Hong Jen Yee (PCMan) <pcman.tw@gmail.com>
 //
-//	This library is free software; you can redistribute it and/or
-//	modify it under the terms of the GNU Library General Public
-//	License as published by the Free Software Foundation; either
-//	version 2 of the License, or (at your option) any later version.
+//    This library is free software; you can redistribute it and/or
+//    modify it under the terms of the GNU Library General Public
+//    License as published by the Free Software Foundation; either
+//    version 2 of the License, or (at your option) any later version.
 //
-//	This library is distributed in the hope that it will be useful,
-//	but WITHOUT ANY WARRANTY; without even the implied warranty of
-//	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-//	Library General Public License for more details.
+//    This library is distributed in the hope that it will be useful,
+//    but WITHOUT ANY WARRANTY; without even the implied warranty of
+//    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+//    Library General Public License for more details.
 //
-//	You should have received a copy of the GNU Library General Public
-//	License along with this library; if not, write to the
-//	Free Software Foundation, Inc., 51 Franklin St, Fifth Floor,
-//	Boston, MA  02110-1301, USA.
+//    You should have received a copy of the GNU Library General Public
+//    License along with this library; if not, write to the
+//    Free Software Foundation, Inc., 51 Franklin St, Fifth Floor,
+//    Boston, MA  02110-1301, USA.
 //
 
 #ifndef IME_DISPLAY_ATTRIBUTE_PROVIDER_H
@@ -33,21 +33,21 @@ class DisplayAttributeInfo;
 class DisplayAttributeProvider : public ComObject<ComInterface<ITfDisplayAttributeProvider>> {
 public:
 
-	friend class DisplayAttributeInfoEnum;
+    friend class DisplayAttributeInfoEnum;
 
     DisplayAttributeProvider(ImeModule* module);
 
-	// COM stuff
+    // COM stuff
 
-	// ITfDisplayAttributeProvider
+    // ITfDisplayAttributeProvider
     STDMETHODIMP EnumDisplayAttributeInfo(IEnumTfDisplayAttributeInfo **ppEnum);
     STDMETHODIMP GetDisplayAttributeInfo(REFGUID guidInfo, ITfDisplayAttributeInfo **ppInfo);
 
 protected: // COM object should not be deleted directly. calling Release() instead.
-	virtual ~DisplayAttributeProvider(void);
+    virtual ~DisplayAttributeProvider(void);
 
 private:
-	ComPtr<ImeModule> imeModule_;
+    ComPtr<ImeModule> imeModule_;
 };
 
 }
