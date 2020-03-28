@@ -43,15 +43,6 @@ KeyEvent::KeyEvent(UINT type, WPARAM wp, LPARAM lp):
     keyStates_[VK_CONTROL] = ctrlState;
 }
 
-KeyEvent::KeyEvent(const KeyEvent& other):
-    type_(other.type_),
-    keyCode_(other.keyCode_),
-    charCode_(other.charCode_),
-    lParam_(other.lParam_) {
-
-    ::memcpy(keyStates_, other.keyStates_, sizeof(keyStates_));
-}
-
 KeyEvent::~KeyEvent(void) {
 }
 

@@ -17,8 +17,7 @@
 //    Boston, MA  02110-1301, USA.
 //
 
-#ifndef IME_KEY_EVENT_H
-#define IME_KEY_EVENT_H
+#pragma once
 
 #include <Windows.h>
 
@@ -26,41 +25,42 @@ namespace Ime {
 
 class KeyEvent {
 public:
+    KeyEvent() = delete;
+    KeyEvent(const KeyEvent& other) = default;
     KeyEvent(UINT type, WPARAM wp, LPARAM lp);
-    KeyEvent(const KeyEvent& other);
     ~KeyEvent(void);
 
-    UINT type() {
+    UINT type() const {
         return type_;
     }
 
-    UINT keyCode() {
+    UINT keyCode() const {
         return keyCode_;
     }
 
-    UINT charCode() {
+    UINT charCode() const {
         return charCode_;
     }
 
-    bool isChar() {
+    bool isChar() const {
         return (charCode_ != 0);
     }
 
-    LPARAM lParam() {
+    LPARAM lParam() const {
         return lParam_;
     }
 
-    unsigned short repeatCount() {
+    unsigned short repeatCount() const {
         // bits 0-15
         return (unsigned short)(lParam_ & 0xffff);
     }
 
-    unsigned char scanCode() {
+    unsigned char scanCode() const {
         // bits 16-23
         return (unsigned char)(lParam_ & 0xff0000);
     }
 
-    bool isExtended() {
+    bool isExtended() const {
         // bit 24
         return (lParam_ & (1<<24)) != 0;
     }
@@ -76,9 +76,6 @@ public:
     const BYTE* keyStates() const {
         return keyStates_;
     }
-
-private:
-    KeyEvent(void) {}
 
 private:
     UINT type_;
@@ -97,15 +94,15 @@ public:
         state_ = ::GetKeyState(keyCode);
     }
 
-    bool isDown() {
+    bool isDown() const {
         return ((state_ & (1 << 15)) != 0);
     }
 
-    bool isToggled() {
+    bool isToggled() const {
         return ((state_ & 1) != 0);
     }
 
-    short state() {
+    short state() const {
         return state_;
     }
 
@@ -114,5 +111,3 @@ private:
 };
 
 }
-
-#endif
