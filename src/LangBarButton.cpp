@@ -23,21 +23,22 @@
 #include <OleCtl.h>
 #include <assert.h>
 #include <stdlib.h>
+#include <algorithm>
 
 namespace Ime {
 
-LangBarButton::LangBarButton(TextService* service, const GUID& guid, UINT commandId, const wchar_t* text, DWORD style):
-	textService_(service),
-	tooltip_(),
+std::atomic<DWORD> LangBarButton::nextCookie = 0;
+
+LangBarButton::LangBarButton(ComPtr<TextService> service, const GUID& guid, UINT commandId, const wchar_t* text, DWORD style):
+	textService_(std::move(service)),
 	commandId_(commandId),
 	menu_(NULL),
 	icon_(NULL),
 	status_(0) {
 
-	assert(service && service->imeModule());
+	assert(textService_ && textService_->imeModule());
 
-	textService_->AddRef();
-	info_.clsidService = service->imeModule()->textServiceClsid();
+	info_.clsidService = textService_->imeModule()->textServiceClsid();
 	info_.guidItem = guid;
 	info_.dwStyle = style;
 	info_.ulSort = 0;
@@ -45,10 +46,9 @@ LangBarButton::LangBarButton(TextService* service, const GUID& guid, UINT comman
 }
 
 LangBarButton::~LangBarButton(void) {
-	if(textService_)
-		textService_->Release();
-	if(menu_)
-		::DestroyMenu(menu_);
+    if (menu_) {
+        ::DestroyMenu(menu_);
+    }
 }
 
 const wchar_t* LangBarButton::text() const {
@@ -76,8 +76,9 @@ void LangBarButton::setText(UINT stringId) {
 	const wchar_t* str;
 	int len = ::LoadStringW(textService_->imeModule()->hInstance(), stringId, (LPTSTR)&str, 0);
 	if(str) {
-		if(len > (TF_LBI_DESC_MAXLEN - 1))
-			len = TF_LBI_DESC_MAXLEN - 1;
+        if (len > (TF_LBI_DESC_MAXLEN - 1)) {
+            len = TF_LBI_DESC_MAXLEN - 1;
+        }
 		wcsncpy(info_.szDescription, str, len);
 		info_.szDescription[len] = 0;
 		update(TF_LBI_TEXT);
@@ -85,12 +86,12 @@ void LangBarButton::setText(UINT stringId) {
 }
 
 // public methods
-const wchar_t* LangBarButton::tooltip() const {
-	return tooltip_.c_str();
+const std::wstring& LangBarButton::tooltip() const {
+	return tooltip_;
 }
 
-void LangBarButton::setTooltip(const wchar_t* tooltip) {
-	tooltip_ = tooltip;
+void LangBarButton::setTooltip(std::wstring tooltip) {
+	tooltip_ = std::move(tooltip);
 	update(TF_LBI_TOOLTIP);
 }
 
@@ -112,14 +113,15 @@ HICON LangBarButton::icon() const {
 // That means, when the button is destroyed, it will not destroy
 // the icon automatically.
 void LangBarButton::setIcon(HICON icon) {
-	icon_ = icon;
-	update(TF_LBI_ICON);
+    if (icon != icon_) {
+        icon_ = icon;
+        update(TF_LBI_ICON);
+    }
 }
 
 void LangBarButton::setIcon(UINT iconId) {
 	HICON icon = ::LoadIconW(textService_->imeModule()->hInstance(), (LPCTSTR)iconId);
-	if(icon)
-		setIcon(icon);
+	setIcon(icon);
 }
 
 UINT LangBarButton::commandId() const {
@@ -134,16 +136,15 @@ HMENU LangBarButton::menu() const {
 	return menu_;
 }
 
+// The button takes ownership of the menu and will delete it in destructor.
+// FIXME: This is not consistent with setIcon(). Maybe change this later?
 void LangBarButton::setMenu(HMENU menu) {
 	if(menu_) {
 		::DestroyMenu(menu_);
 	}
 	menu_ = menu;
 	// FIXME: how to handle toggle buttons?
-	if(menu)
-		info_.dwStyle = TF_LBI_STYLE_BTN_MENU;
-	else
-		info_.dwStyle = TF_LBI_STYLE_BTN_BUTTON;
+	info_.dwStyle = menu ? TF_LBI_STYLE_BTN_MENU : TF_LBI_STYLE_BTN_BUTTON;
 }
 
 bool LangBarButton::enabled() const {
@@ -152,10 +153,12 @@ bool LangBarButton::enabled() const {
 
 void LangBarButton::setEnabled(bool enable) {
 	if(enabled() != enable) {
-		if(enable)
-			status_ &= ~TF_LBI_STATUS_DISABLED;
-		else
-			status_ |= TF_LBI_STATUS_DISABLED;
+        if (enable) {
+            status_ &= ~TF_LBI_STATUS_DISABLED;
+        }
+        else {
+            status_ |= TF_LBI_STATUS_DISABLED;
+        }
 		update(TF_LBI_STATUS);
 	}
 }
@@ -167,14 +170,15 @@ bool LangBarButton::toggled() const {
 
 void LangBarButton::setToggled(bool toggle) {
 	if(toggled() != toggle) {
-		if(toggle)
-			status_ |= TF_LBI_STATUS_BTN_TOGGLED;
-		else
-			status_ &= ~TF_LBI_STATUS_BTN_TOGGLED;
+        if (toggle) {
+            status_ |= TF_LBI_STATUS_BTN_TOGGLED;
+        }
+        else {
+            status_ &= ~TF_LBI_STATUS_BTN_TOGGLED;
+        }
 		update(TF_LBI_STATUS);
 	}
 }
-
 
 DWORD LangBarButton::style() const {
 	return info_.dwStyle;
@@ -209,18 +213,15 @@ STDMETHODIMP LangBarButton::GetTooltipString(BSTR *pbstrToolTip) {
 
 // ITfLangBarItemButton
 STDMETHODIMP LangBarButton::OnClick(TfLBIClick click, POINT pt, const RECT *prcArea) {
-	TextService::CommandType type;
-	if(click == TF_LBI_CLK_RIGHT)
-		type = TextService::COMMAND_RIGHT_CLICK;
-	else
-		type = TextService::COMMAND_LEFT_CLICK;
+	auto type = click == TF_LBI_CLK_RIGHT ? TextService::COMMAND_RIGHT_CLICK : TextService::COMMAND_LEFT_CLICK;
 	textService_->onCommand(commandId_, type);
 	return S_OK;
 }
 
 STDMETHODIMP LangBarButton::InitMenu(ITfMenu *pMenu) {
-	if(!menu_)
-		return E_FAIL;
+    if (!menu_) {
+        return E_FAIL;
+    }
 	buildITfMenu(pMenu, menu_);
 	return S_OK;
 }
@@ -246,24 +247,26 @@ STDMETHODIMP LangBarButton::GetText(BSTR *pbstrText) {
 // ITfSource
 STDMETHODIMP LangBarButton::AdviseSink(REFIID riid, IUnknown *punk, DWORD *pdwCookie) {
     if(IsEqualIID(riid, IID_ITfLangBarItemSink)) {
-		ITfLangBarItemSink* langBarItemSink;
-		if(punk->QueryInterface(IID_ITfLangBarItemSink, (void **)&langBarItemSink) == S_OK) {
-		    *pdwCookie = (DWORD)rand();
-			sinks_[*pdwCookie] = langBarItemSink;
+		if(auto langBarItemSink = ComPtr<ITfLangBarItemSink>::query(punk)) {
+            *pdwCookie = nextCookie++;
+            sinks_.emplace_back(*pdwCookie, langBarItemSink);
 			return S_OK;
 		}
-		else
-			return E_NOINTERFACE;
+        else {
+            return E_NOINTERFACE;
+        }
 	}
     return CONNECT_E_CANNOTCONNECT;
 }
 
 STDMETHODIMP LangBarButton::UnadviseSink(DWORD dwCookie) {
-	std::map<DWORD, ITfLangBarItemSink*>::iterator it = sinks_.find(dwCookie);
+    auto it = std::remove_if(sinks_.begin(), sinks_.end(),
+        [=](const auto& item) {
+            return item.first == dwCookie;
+        }
+    );
 	if(it != sinks_.end()) {
-		ITfLangBarItemSink* langBarItemSink = (ITfLangBarItemSink*)it->second;
-		langBarItemSink->Release();
-		sinks_.erase(it);
+		sinks_.erase(it, sinks_.end());
 		return S_OK;
 	}
 	return CONNECT_E_NOCONNECTION;
@@ -298,14 +301,17 @@ void LangBarButton::buildITfMenu(ITfMenu* menu, HMENU templ) {
 			else if(mi.fType == MFT_SEPARATOR) { // separator item
 				flags |= TF_LBMENUF_SEPARATOR;
 			}
-			else // other types are not supported
-				continue;
+            else { // other types are not supported
+                continue;
+            }
 
-			if(mi.fState & MFS_CHECKED) // checked
-				flags |= TF_LBMENUF_CHECKED;
-			if(mi.fState & (MFS_GRAYED|MFS_DISABLED)) // disabled
-				flags |= TF_LBMENUF_GRAYED;
-			
+            if (mi.fState & MFS_CHECKED) { // checked
+                flags |= TF_LBMENUF_CHECKED;
+            }
+            if (mi.fState & (MFS_GRAYED | MFS_DISABLED)) { // disabled
+                flags |= TF_LBMENUF_GRAYED;
+            }
+
 			if(menu->AddMenuItem(mi.wID, flags, NULL, 0, text, textLen, pSubMenu) == S_OK) {
 				if(subMenu) {
 					buildITfMenu(subMenu, mi.hSubMenu);
@@ -321,14 +327,9 @@ void LangBarButton::buildITfMenu(ITfMenu* menu, HMENU templ) {
 
 // call all sinks to generate update notifications
 void LangBarButton::update(DWORD flags) {
-	if(!sinks_.empty()) {
-		std::map<DWORD, ITfLangBarItemSink*>::iterator it;
-		for(it = sinks_.begin(); it != sinks_.end(); ++it) {
-			ITfLangBarItemSink* sink = it->second;
-			sink->OnUpdate(flags);
-		}
+	for(const auto& sinkPair: sinks_) {
+        sinkPair.second->OnUpdate(flags);
 	}
 }
 
 } // namespace Ime
-

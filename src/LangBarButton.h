@@ -1,5 +1,5 @@
 //
-//	Copyright (C) 2013 Hong Jen Yee (PCMan) <pcman.tw@gmail.com>
+//	Copyright (C) 2013 - 2020 Hong Jen Yee (PCMan) <pcman.tw@gmail.com>
 //
 //	This library is free software; you can redistribute it and/or
 //	modify it under the terms of the GNU Library General Public
@@ -17,15 +17,17 @@
 //	Boston, MA  02110-1301, USA.
 //
 
-#ifndef IME_LANGUAGE_BAR_BUTTON_H
-#define IME_LANGUAGE_BAR_BUTTON_H
+#pragma once
 
 #include <msctf.h>
 #include <string.h>
 #include <Windows.h>
-#include <map>
+#include <vector>
+#include <utility>
 #include <string>
+#include <atomic>
 #include "ComObject.h"
+#include "ComPtr.h"
 
 namespace Ime {
 
@@ -37,15 +39,20 @@ class LangBarButton:
         ComInterface<ITfSource>
     > {
 public:
-	LangBarButton(TextService* service, const GUID& guid, UINT commandId = 0, const wchar_t* text = NULL, DWORD style = TF_LBI_STYLE_BTN_BUTTON);
+	LangBarButton(
+        ComPtr<TextService> service,
+        const GUID& guid,
+        UINT commandId = 0,
+        const wchar_t* text = NULL,
+        DWORD style = TF_LBI_STYLE_BTN_BUTTON);
 
 	// public methods
 	const wchar_t* text() const;
 	void setText(const wchar_t* text);
 	void setText(UINT stringId);
 
-	const wchar_t* tooltip() const;
-	void setTooltip(const wchar_t* tooltip);
+	const std::wstring& tooltip() const;
+	void setTooltip(std::wstring tooltip);
 	void setTooltip(UINT stringId);
 
 	HICON icon() const;
@@ -100,16 +107,15 @@ private:
 	void buildITfMenu(ITfMenu* menu, HMENU templ);
 
 private:
-	TextService* textService_;
+    ComPtr<TextService> textService_;
 	TF_LANGBARITEMINFO info_;
 	UINT commandId_;
 	std::wstring tooltip_;
 	HICON icon_;
 	HMENU menu_;
-	std::map<DWORD, ITfLangBarItemSink*> sinks_;
+	std::vector<std::pair<DWORD, ComPtr<ITfLangBarItemSink>>> sinks_;
 	DWORD status_;
+    static std::atomic<DWORD> nextCookie;
 };
 
 }
-
-#endif
