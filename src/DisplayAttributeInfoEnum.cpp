@@ -1,5 +1,5 @@
 //
-//	Copyright (C) 2013 Hong Jen Yee (PCMan) <pcman.tw@gmail.com>
+//	Copyright (C) 2013 - 2020 Hong Jen Yee (PCMan) <pcman.tw@gmail.com>
 //
 //	This library is free software; you can redistribute it and/or
 //	modify it under the terms of the GNU Library General Public
@@ -24,15 +24,10 @@
 
 namespace Ime {
 
-DisplayAttributeInfoEnum::DisplayAttributeInfoEnum(DisplayAttributeProvider* provider):
-	provider_(provider) {
+DisplayAttributeInfoEnum::DisplayAttributeInfoEnum(ComPtr<DisplayAttributeProvider> provider):
+	provider_(std::move(provider)) {
 	std::list<DisplayAttributeInfo*>& displayAttrInfos = provider_->imeModule_->displayAttrInfos();
 	iterator_ = displayAttrInfos.begin();
-}
-
-DisplayAttributeInfoEnum::DisplayAttributeInfoEnum(const DisplayAttributeInfoEnum& other):
-	provider_(other.provider_),
-	iterator_(other.iterator_) {
 }
 
 DisplayAttributeInfoEnum::~DisplayAttributeInfoEnum(void) {
@@ -40,26 +35,24 @@ DisplayAttributeInfoEnum::~DisplayAttributeInfoEnum(void) {
 
 // IEnumTfDisplayAttributeInfo
 STDMETHODIMP DisplayAttributeInfoEnum::Clone(IEnumTfDisplayAttributeInfo **ppEnum) {
-	*ppEnum = (IEnumTfDisplayAttributeInfo*)new DisplayAttributeInfoEnum(*this);
+	*ppEnum = static_cast<IEnumTfDisplayAttributeInfo*>(new DisplayAttributeInfoEnum(*this));
 	return S_OK;
 }
 
 STDMETHODIMP DisplayAttributeInfoEnum::Next(ULONG ulCount, ITfDisplayAttributeInfo **rgInfo, ULONG *pcFetched) {
-	ULONG i = 0;
-	std::list<DisplayAttributeInfo*>& displayAttrInfos = provider_->imeModule_->displayAttrInfos();
-	for(; i < ulCount; ++i) {
-		if(iterator_ != displayAttrInfos.end()) {
-			DisplayAttributeInfo* info = *iterator_;
-			info->AddRef();
-			rgInfo[i] = info;
-			++iterator_;
-		}
-		else
-			break;
-	}
-	if(pcFetched)
-		*pcFetched = i;
-	return S_OK;
+	ULONG n = 0;
+    if (rgInfo != nullptr) {
+        std::list<DisplayAttributeInfo*>& displayAttrInfos = provider_->imeModule_->displayAttrInfos();
+        for (; n < ulCount && iterator_ != displayAttrInfos.end(); ++n, ++iterator_) {
+            DisplayAttributeInfo* info = *iterator_;
+            info->AddRef();
+            rgInfo[n] = info;
+        }
+    }
+    if (pcFetched) {
+        *pcFetched = n;
+    }
+	return n < ulCount ? S_FALSE : S_OK;
 }
 
 STDMETHODIMP DisplayAttributeInfoEnum::Reset() {

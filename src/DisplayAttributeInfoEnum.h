@@ -1,5 +1,5 @@
 //
-//	Copyright (C) 2013 Hong Jen Yee (PCMan) <pcman.tw@gmail.com>
+//	Copyright (C) 2013 - 2020 Hong Jen Yee (PCMan) <pcman.tw@gmail.com>
 //
 //	This library is free software; you can redistribute it and/or
 //	modify it under the terms of the GNU Library General Public
@@ -17,8 +17,7 @@
 //	Boston, MA  02110-1301, USA.
 //
 
-#ifndef IME_DISPLAY_ATTRIBUTE_INFO_ENUM_H
-#define IME_DISPLAY_ATTRIBUTE_INFO_ENUM_H
+#pragma once
 
 #include <msctf.h>
 #include <list>
@@ -32,8 +31,7 @@ class DisplayAttributeProvider;
 
 class DisplayAttributeInfoEnum: public ComObject<ComInterface<IEnumTfDisplayAttributeInfo>> {
 public:
-	DisplayAttributeInfoEnum(DisplayAttributeProvider* provider);
-	DisplayAttributeInfoEnum(const DisplayAttributeInfoEnum& other);
+	DisplayAttributeInfoEnum(ComPtr<DisplayAttributeProvider> provider);
 
     // IEnumTfDisplayAttributeInfo
     STDMETHODIMP Clone(IEnumTfDisplayAttributeInfo **ppEnum);
@@ -50,5 +48,3 @@ private:
 };
 
 }
-
-#endif
