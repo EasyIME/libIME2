@@ -57,6 +57,12 @@ public:
 		}
 	}
 
+    // Similar to std::make_unique()
+    template <typename... Args>
+    static ComPtr make(Args&&... args) {
+        return ComPtr::takeover(new T(std::forward<Args>(args)...));
+    }
+
     static ComPtr takeover(T*&& rawPtr) {
         ComPtr ptr;
         ptr.p_ = rawPtr;

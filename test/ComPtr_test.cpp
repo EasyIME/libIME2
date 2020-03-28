@@ -26,6 +26,11 @@ TEST(TestComPtr, InitFromIUnknownPtr)
     EXPECT_EQ(obj.refCount(), 2);
 }
 
+TEST(TestComPtr, MakesNewPtr)
+{
+    auto ptr = Ime::ComPtr<IUnknownMock>::make();
+    EXPECT_EQ(ptr->refCount(), 1);
+}
 TEST(TestComPtr, TakesOverIUnknownPtr)
 {
     auto obj = new IUnknownMock();
