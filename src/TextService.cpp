@@ -52,9 +52,6 @@ TextService::TextService(ImeModule* module):
 }
 
 TextService::~TextService(void) {
-    // ImeModule needs to do some clean up before deleting the TextService object.
-    module_->removeTextService(this);
-
 	// This should only happen in rare cases
 	if(!compartmentMonitors_.empty()) {
 		vector<CompartmentMonitor>::iterator it;

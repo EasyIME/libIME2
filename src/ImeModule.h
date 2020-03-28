@@ -23,10 +23,12 @@
 #include <Unknwn.h>
 #include <Windows.h>
 #include <Ctffunc.h>
-#include <list>
 #include <string>
+#include <list>
 #include "WindowsVersion.h"
 #include "ComPtr.h"
+#include "ComObject.h"
+#include <mutex>
 
 namespace Ime {
 
@@ -44,9 +46,10 @@ struct LangProfileInfo {
 };
 
 
-class ImeModule:
-	public IClassFactory,
-	public ITfFnConfigure {
+class ImeModule: public ComObject<
+	ComInterface<IClassFactory>,
+	ComInterface<ITfFnConfigure>
+> {
 public:
 	ImeModule(HMODULE module, const CLSID& textServiceClsid);
 
@@ -77,7 +80,6 @@ public:
 
 	// should be override by IME implementors
 	virtual TextService* createTextService() = 0;
-	void removeTextService(TextService* service);
 
 	// called when config dialog needs to be launched
 	virtual bool onConfigure(HWND hwndParent, LANGID langid, REFGUID rguidProfile);
@@ -92,23 +94,18 @@ public:
 	DisplayAttributeInfo* inputAttrib() {
 		return inputAttrib_;
 	}
-	
+
 	/*
 	DisplayAttributeInfo* convertedAttrib() {
 		return convertedAttrib_;
 	}
 	*/
 
-	const std::list<TextService*>& textServices() const {
-		return textServices_;
-	}
-
 	// COM-related stuff
 
 	// IUnknown
-    STDMETHODIMP QueryInterface(REFIID riid, void **ppvObj);
-    STDMETHODIMP_(ULONG) AddRef(void);
-    STDMETHODIMP_(ULONG) Release(void);
+    STDMETHODIMP_(ULONG) AddRef(void) override;
+    STDMETHODIMP_(ULONG) Release(void) override;
 
 protected:
     // IClassFactory
@@ -125,18 +122,17 @@ protected: // COM object should not be deleted directly. calling Release() inste
 	virtual ~ImeModule(void);
 
 private:
-	volatile unsigned long refCount_;
+    std::mutex refCountMutex_;
 	HINSTANCE hInstance_;
 	CLSID textServiceClsid_;
 	wchar_t* tooltip_;
 
-	// display attributes
-	std::list< ComPtr<DisplayAttributeInfo>> displayAttrInfos_; // display attribute info
+    // display attributes
+	std::list< ComPtr<DisplayAttributeInfo>> displayAttrInfos_;
 	ComPtr<DisplayAttributeInfo> inputAttrib_;
 	// DisplayAttributeInfo* convertedAttrib_;
 
 	WindowsVersion winVer_;
-	std::list<TextService*> textServices_;
 };
 
 }

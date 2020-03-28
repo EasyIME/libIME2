@@ -59,8 +59,7 @@ static const GUID g_inputDisplayAttributeGuid =
 
 ImeModule::ImeModule(HMODULE module, const CLSID& textServiceClsid):
 	hInstance_(HINSTANCE(module)),
-	textServiceClsid_(textServiceClsid),
-	refCount_(1) {
+	textServiceClsid_(textServiceClsid) {
 
 	Window::registerClass(hInstance_);
 
@@ -83,7 +82,7 @@ ImeModule::~ImeModule(void) {
 // Dll entry points implementations
 HRESULT ImeModule::canUnloadNow() {
 	// we own the last reference
-	return refCount_ <= 1 ? S_OK : S_FALSE;
+	return refCount() <= 1 ? S_OK : S_FALSE;
 }
 
 HRESULT ImeModule::getClassObject(REFCLSID rclsid, REFIID riid, void **ppvObj) {
@@ -93,8 +92,9 @@ HRESULT ImeModule::getClassObject(REFCLSID rclsid, REFIID riid, void **ppvObj) {
 		*ppvObj = (IClassFactory*)this; // our own object implements IClassFactory
 		return NOERROR;
     }
-	else
-	    *ppvObj = NULL;
+    else {
+        *ppvObj = NULL;
+    }
     return CLASS_E_CLASSNOTAVAILABLE;
 }
 
@@ -453,9 +453,6 @@ bool ImeModule::registerDisplayAttributeInfos() {
 	return false;
 }
 
-void ImeModule::removeTextService(TextService* service) {
-	textServices_.remove(service);
-}
 
 // virtual
 bool ImeModule::onConfigure(HWND hwndParent, LANGID langid, REFGUID rguidProfile) {
@@ -466,52 +463,31 @@ bool ImeModule::onConfigure(HWND hwndParent, LANGID langid, REFGUID rguidProfile
 // COM related stuff
 
 // IUnknown
-STDMETHODIMP ImeModule::QueryInterface(REFIID riid, void **ppvObj) {
-    if (ppvObj == NULL)
-        return E_INVALIDARG;
-
-	if(IsEqualIID(riid, IID_IUnknown) || IsEqualIID(riid, IID_IClassFactory))
-		*ppvObj = (IClassFactory*)this;
-	else if(IsEqualIID(riid, IID_ITfFnConfigure))
-	 	*ppvObj = (ITfFnConfigure*)this;
-	else
-		*ppvObj = NULL;
-
-	if(*ppvObj) {
-		AddRef();
-		return S_OK;
-	}
-	return E_NOINTERFACE;
-}
-
 STDMETHODIMP_(ULONG) ImeModule::AddRef(void) {
-	return ::InterlockedIncrement(&refCount_);
+    // In the examples of MS TSF, a critical section is used to protect the ref count
+    // of the Dll but the document didn't explain the reason. Since in our design
+    // the life-cycle of the ImeModule object and the Dll are tied together,
+    // we protect the ref count of ImeModule with a mutex.
+    std::lock_guard <std::mutex> lock{refCountMutex_};
+    return ComObject::AddRef();
 }
 
 STDMETHODIMP_(ULONG) ImeModule::Release(void) {
-	// NOTE: I think we do not need to use critical sections to
-	// protect the operation as M$ did in their TSF samples.
-	// Our ImeModule will be alive until dll unload so
-	// it's not possible for an user application and TSF manager
-	// to free our objecet since we always have refCount == 1.
-	// The last reference is released in DllMain() when unloading.
-	// Hence interlocked operations are enough here, I guess.
-	assert(refCount_ > 0);
-	if(::InterlockedExchangeSubtract(&refCount_, 1) == 1) {
-		delete this;
-		return 0;
-	}
-	return refCount_;
+    // In the examples of MS TSF, a critical section is used to protect the ref count
+    // of the Dll but the document didn't explain the reason. Since in our design
+    // the life-cycle of the ImeModule object and the Dll are tied together,
+    // we protect the ref count of ImeModule with a mutex.
+    std::lock_guard <std::mutex> lock{ refCountMutex_ };
+	return ComObject::Release();
 }
 
 // IClassFactory
 STDMETHODIMP ImeModule::CreateInstance(IUnknown *pUnkOuter, REFIID riid, void **ppvObj) {
 	*ppvObj = NULL;
 	if(::IsEqualIID(riid, IID_ITfDisplayAttributeProvider)) {
-		DisplayAttributeProvider* provider = new DisplayAttributeProvider(this);
+		auto provider = ComPtr<DisplayAttributeProvider>::make(this);
 		if(provider) {
 			provider->QueryInterface(riid, ppvObj);
-			provider->Release();
 		}
 	}
 	else if(::IsEqualIID(riid, IID_ITfFnConfigure)) {
@@ -521,7 +497,6 @@ STDMETHODIMP ImeModule::CreateInstance(IUnknown *pUnkOuter, REFIID riid, void **
 	else {
 		TextService* service = createTextService();
 		if(service) {
-			textServices_.push_back(service);
 			service->QueryInterface(riid, ppvObj);
 			service->Release();
 		}
@@ -530,10 +505,12 @@ STDMETHODIMP ImeModule::CreateInstance(IUnknown *pUnkOuter, REFIID riid, void **
 }
 
 STDMETHODIMP ImeModule::LockServer(BOOL fLock) {
-	if(fLock)
-		AddRef();
-	else
-		Release();
+    if (fLock) {
+        AddRef();
+    }
+    else {
+        Release();
+    }
 	return S_OK;
 }
 
