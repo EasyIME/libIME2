@@ -69,13 +69,19 @@ public:
     TextService(ImeModule* module);
 
     // public methods
-    ImeModule* imeModule() const;
+    const ComPtr<ImeModule>& imeModule() const {
+        return module_;
+    }
 
-    ITfThreadMgr* threadMgr() const;
+    const ComPtr<ITfThreadMgr>& threadMgr() const {
+        return threadMgr_;
+    }
 
-    TfClientId clientId() const;
+    TfClientId clientId() const {
+        return clientId_;
+    }
 
-    ITfContext* currentContext();
+    ComPtr<ITfContext> currentContext();
 
     bool isActivated() const {
         return (threadMgr() != NULL);
@@ -265,7 +271,7 @@ protected: // COM object should not be deleted directly. calling Release() inste
 
 private:
     ComPtr<ImeModule> module_;
-    ComPtr< ITfDisplayAttributeProvider> displayAttributeProvider_;
+    ComPtr<ITfDisplayAttributeProvider> displayAttributeProvider_;
     ComPtr<ITfThreadMgr> threadMgr_;
     TfClientId clientId_;
     DWORD activateFlags_;
@@ -280,7 +286,7 @@ private:
     DWORD langBarSinkCookie_;
     DWORD activateLanguageProfileNotifySinkCookie_;
 
-    ITfComposition* composition_; // acquired when starting composition, released when ending composition
+    ComPtr<ITfComposition> composition_; // acquired when starting composition, released when ending composition
     ComPtr<ITfLangBarMgr> langBarMgr_;
     std::vector<ComPtr<LangBarButton>> langBarButtons_;
     std::vector<PreservedKey> preservedKeys_;

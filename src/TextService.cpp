@@ -45,48 +45,30 @@ TextService::TextService(ImeModule* module):
     keyboardOpenEventSinkCookie_(TF_INVALID_COOKIE),
     globalCompartmentEventSinkCookie_(TF_INVALID_COOKIE),
     langBarSinkCookie_(TF_INVALID_COOKIE),
-    activateLanguageProfileNotifySinkCookie_(TF_INVALID_COOKIE),
-    composition_(NULL) {
+    activateLanguageProfileNotifySinkCookie_(TF_INVALID_COOKIE) {
 
     addCompartmentMonitor(GUID_COMPARTMENT_KEYBOARD_OPENCLOSE, false);
 }
 
 TextService::~TextService(void) {
     // This should only happen in rare cases
-    if(!compartmentMonitors_.empty()) {
-        vector<CompartmentMonitor>::iterator it;
-        for(it = compartmentMonitors_.begin(); it != compartmentMonitors_.end(); ++it) {
-            ComPtr<ITfSource> source;
-            if(it->isGlobal)
-                source = globalCompartment(it->guid).query<ITfSource>();
-            else
-                source = threadCompartment(it->guid).query<ITfSource>();
-            if (source) {
-                source->UnadviseSink(it->cookie);
-            }
+    for(auto& monitor : compartmentMonitors_) {
+        ComPtr<ITfSource> source;
+        if(monitor.isGlobal)
+            source = globalCompartment(monitor.guid).query<ITfSource>();
+        else
+            source = threadCompartment(monitor.guid).query<ITfSource>();
+        if (source) {
+            source->UnadviseSink(monitor.cookie);
         }
     }
 
     if(langBarMgr_) {
         langBarMgr_->UnadviseEventSink(langBarSinkCookie_);
     }
-    langBarMgr_ = NULL;
 }
 
 // public methods
-
-ImeModule* TextService::imeModule() const {
-    return module_;
-}
-
-ITfThreadMgr* TextService::threadMgr() const {
-    return threadMgr_;
-}
-
-TfClientId TextService::clientId() const {
-    return clientId_;
-}
-
 
 // language bar
 DWORD TextService::langBarStatus() const {
@@ -103,8 +85,7 @@ void TextService::addButton(LangBarButton* button) {
     if(button) {
         langBarButtons_.emplace_back(button);
         if(isActivated()) {
-            ComPtr<ITfLangBarItemMgr> langBarItemMgr;
-            if(threadMgr_->QueryInterface(IID_ITfLangBarItemMgr, (void**)&langBarItemMgr) == S_OK) {
+            if(auto langBarItemMgr = threadMgr_.query<ITfLangBarItemMgr>()) {
                 langBarItemMgr->AddItem(button);
             }
         }
@@ -116,8 +97,7 @@ void TextService::removeButton(LangBarButton* button) {
         auto it = find(langBarButtons_.begin(), langBarButtons_.end(), button);
         if(it != langBarButtons_.end()) {
             if(isActivated()) {
-                ComPtr<ITfLangBarItemMgr> langBarItemMgr;
-                if(threadMgr_->QueryInterface(IID_ITfLangBarItemMgr, (void**)&langBarItemMgr) == S_OK) {
+                if(auto langBarItemMgr = threadMgr_.query<ITfLangBarItemMgr>()) {
                     langBarItemMgr->RemoveItem(button);
                 }
             }
@@ -134,29 +114,24 @@ void TextService::addPreservedKey(UINT keyCode, UINT modifiers, const GUID& guid
     preservedKey.uModifiers = modifiers;
     preservedKeys_.push_back(preservedKey);
     if(threadMgr_) { // our text service is activated
-        ITfKeystrokeMgr *keystrokeMgr;
-        if (threadMgr_->QueryInterface(IID_ITfKeystrokeMgr, (void **)&keystrokeMgr) == S_OK) {
+        if (auto keystrokeMgr = threadMgr_.query<ITfKeystrokeMgr>()) {
             keystrokeMgr->PreserveKey(clientId_, guid, &preservedKey, NULL, 0);
-            keystrokeMgr->Release();
         }
     }
 }
 
 void TextService::removePreservedKey(const GUID& guid) {
-    vector<PreservedKey>::iterator it;
-    for(it = preservedKeys_.begin(); it != preservedKeys_.end(); ++it) {
-        PreservedKey& preservedKey = *it;
-        if(::IsEqualIID(preservedKey.guid, guid)) {
-            if(threadMgr_) { // our text service is activated
-                ITfKeystrokeMgr *keystrokeMgr;
-                if (threadMgr_->QueryInterface(IID_ITfKeystrokeMgr, (void **)&keystrokeMgr) == S_OK) {
-                    keystrokeMgr->UnpreserveKey(preservedKey.guid, &preservedKey);
-                    keystrokeMgr->Release();
-                }
-            }
-            preservedKeys_.erase(it);
-            break;
+    auto it = std::find_if(preservedKeys_.begin(), preservedKeys_.end(),
+        [&](const auto& preservedKey) {
+            return ::IsEqualIID(preservedKey.guid, guid);
         }
+    );
+    if (it != preservedKeys_.end()) {
+        if (auto keystrokeMgr = threadMgr_.query<ITfKeystrokeMgr>()) {
+            auto& preservedKey = *it;
+            keystrokeMgr->UnpreserveKey(preservedKey.guid, &preservedKey);
+        }
+        preservedKeys_.erase(it);
     }
 }
 
@@ -164,7 +139,7 @@ void TextService::removePreservedKey(const GUID& guid) {
 // text composition
 
 bool TextService::isComposing() {
-    return (composition_ != NULL);
+    return (composition_ != nullptr);
 }
 
 // is keyboard disabled for the context (NULL means current context)
@@ -189,11 +164,11 @@ void TextService::setKeyboardOpen(bool open) {
 // if not in range, insertion is now allowed
 bool TextService::isInsertionAllowed(EditSession* session) {
     TfEditCookie cookie = session->editCookie();
-    TF_SELECTION selection;
     ULONG selectionNum;
     if(isComposing()) {
+        TF_SELECTION selection;
         if(session->context()->GetSelection(cookie, TF_DEFAULT_SELECTION, 1, &selection, &selectionNum) == S_OK) {
-            ITfRange* compositionRange;
+            ComPtr<ITfRange> compositionRange;
             if(composition_->GetRange(&compositionRange) == S_OK) {
                 bool allowed = false;
                 // check if current selection is covered by composition range
@@ -204,10 +179,8 @@ bool TextService::isInsertionAllowed(EditSession* session) {
                     if(compareResult1 == -1 && compareResult2 == +1)
                         allowed = true;
                 }
-                compositionRange->Release();
             }
-            if(selection.range)
-                selection.range->Release();
+            selection.range->Release();
         }
     }
     return false;
@@ -301,7 +274,7 @@ void TextService::setCompositionCursor(EditSession* session, int pos) {
     // get current selection
     if(session->context()->GetSelection(session->editCookie(), TF_DEFAULT_SELECTION, 1, &selection, &selectionNum) == S_OK) {
         // get composition range
-        ITfRange* compositionRange;
+        ComPtr<ITfRange> compositionRange;
         if(composition_->GetRange(&compositionRange) == S_OK) {
             // make the start of selectionRange the same as that of compositionRange
             selection.range->ShiftStartToRange(session->editCookie(), compositionRange, TF_ANCHOR_START);
@@ -312,7 +285,6 @@ void TextService::setCompositionCursor(EditSession* session, int pos) {
             selection.range->Collapse(session->editCookie(), TF_ANCHOR_START);
             // set the new selection to the context
             session->context()->SetSelection(session->editCookie(), 1, &selection);
-            compositionRange->Release();
         }
         selection.range->Release();
     }
@@ -340,11 +312,11 @@ ComPtr<ITfCompartment> TextService::threadCompartment(const GUID& key) {
             return compartment;
         }
     }
-    return NULL;
+    return nullptr;
 }
 
 ComPtr<ITfCompartment> TextService::contextCompartment(const GUID& key, ITfContext* context) {
-    ITfContext* curContext = NULL;
+    ComPtr<ITfContext> curContext;
     if(!context) {
         curContext = currentContext();
         context = curContext;
@@ -357,9 +329,7 @@ ComPtr<ITfCompartment> TextService::contextCompartment(const GUID& key, ITfConte
             return compartment;
         }
     }
-    if(curContext)
-        curContext->Release();
-    return NULL;
+    return nullptr;
 }
 
 
@@ -585,16 +555,14 @@ STDMETHODIMP TextService::Activate(ITfThreadMgr *pThreadMgr, TfClientId tfClient
     clientId_ = tfClientId;
 
     activateFlags_ = 0;
-    auto threadMgrEx = threadMgr_.query<ITfThreadMgrEx>();
-    if(threadMgrEx) {
+    if(auto threadMgrEx = threadMgr_.query<ITfThreadMgrEx>()) {
         threadMgrEx->GetActiveFlags(&activateFlags_);
     }
 
     // advice event sinks (set up event listeners)
-    
+
     // ITfThreadMgrEventSink, ITfActiveLanguageProfileNotifySink
-    auto source = threadMgr_.query<ITfSource>();
-    if(source) {
+    if(auto source = threadMgr_.query<ITfSource>()) {
         source->AdviseSink(IID_ITfThreadMgrEventSink, (ITfThreadMgrEventSink *)this, &threadMgrEventSinkCookie_);
         source->AdviseSink(IID_ITfActiveLanguageProfileNotifySink, (ITfActiveLanguageProfileNotifySink *)this, &activateLanguageProfileNotifySinkCookie_);
     }
@@ -602,16 +570,11 @@ STDMETHODIMP TextService::Activate(ITfThreadMgr *pThreadMgr, TfClientId tfClient
     // ITfTextEditSink,
 
     // ITfKeyEventSink
-    auto keystrokeMgr = threadMgr_.query<ITfKeystrokeMgr>();
-    if (keystrokeMgr) {
+    if (auto keystrokeMgr = threadMgr_.query<ITfKeystrokeMgr>()) {
         keystrokeMgr->AdviseKeyEventSink(clientId_, (ITfKeyEventSink*)this, TRUE);
-    }
 
-    // register preserved keys
-    if(!preservedKeys_.empty()) {
-        vector<PreservedKey>::iterator it;
-        for(it = preservedKeys_.begin(); it != preservedKeys_.end(); ++it) {
-            PreservedKey& preservedKey = *it;
+        // register preserved keys
+        for (const auto& preservedKey : preservedKeys_) {
             keystrokeMgr->PreserveKey(clientId_, preservedKey.guid, &preservedKey, NULL, 0);
         }
     }
@@ -620,24 +583,24 @@ STDMETHODIMP TextService::Activate(ITfThreadMgr *pThreadMgr, TfClientId tfClient
 
     // ITfCompartmentEventSink
     // get current keyboard state
-    if(!compartmentMonitors_.empty()) {
-        vector<CompartmentMonitor>::iterator it;
-        for(it = compartmentMonitors_.begin(); it != compartmentMonitors_.end(); ++it) {
-            ComPtr<ITfSource> compartmentSource;
-            if(it->isGlobal)    // global compartment
-                compartmentSource = globalCompartment(it->guid).query<ITfSource>();
-            else     // thread specific compartment
-                compartmentSource = threadCompartment(it->guid).query<ITfSource>();
-            compartmentSource->AdviseSink(IID_ITfCompartmentEventSink, (ITfCompartmentEventSink*)this, &it->cookie);
+    for(auto& monitor: compartmentMonitors_) {
+        ComPtr<ITfSource> compartmentSource;
+        if (monitor.isGlobal) {    // global compartment
+            compartmentSource = globalCompartment(monitor.guid).query<ITfSource>();
         }
+        else {     // thread specific compartment
+            compartmentSource = threadCompartment(monitor.guid).query<ITfSource>();
+        }
+        compartmentSource->AdviseSink(IID_ITfCompartmentEventSink, (ITfCompartmentEventSink*)this, &monitor.cookie);
     }
     isKeyboardOpened_ = threadCompartmentValue(GUID_COMPARTMENT_KEYBOARD_OPENCLOSE) != 0;
 
     // FIXME: under Windows 7, it seems that the keyboard is closed every time
     // our text service is activated. The value in the compartment is always empty. :-(
     // So, we open the keyboard manually here, but I'm not sure if this is the correct behavior.
-    if(!isKeyboardOpened_)
+    if (!isKeyboardOpened_) {
         setKeyboardOpen(true);
+    }
 
     // initialize language bar
     ::CoCreateInstance(CLSID_TF_LangBarMgr, NULL, CLSCTX_INPROC_SERVER,
@@ -647,8 +610,7 @@ STDMETHODIMP TextService::Activate(ITfThreadMgr *pThreadMgr, TfClientId tfClient
     }
     // Note: language bar has no effects in Win 8 immersive mode
     if(!langBarButtons_.empty()) {
-        ComPtr<ITfLangBarItemMgr> langBarItemMgr;
-        if(threadMgr_->QueryInterface(IID_ITfLangBarItemMgr, (void**)&langBarItemMgr) == S_OK) {
+        if(auto langBarItemMgr = threadMgr_.query<ITfLangBarItemMgr>()) {
             for(auto& button: langBarButtons_) {
                 langBarItemMgr->AddItem(button);
             }
@@ -656,18 +618,14 @@ STDMETHODIMP TextService::Activate(ITfThreadMgr *pThreadMgr, TfClientId tfClient
     }
 
     onActivate();
-    //::MessageBox(0, L"onActivate", 0, 0);
     return S_OK;
 }
 
 STDMETHODIMP TextService::Deactivate() {
-    //::MessageBox(0, L"Deactivate", 0, 0);
     // terminate composition properly
     if(isComposing()) {
-        ITfContext* context = currentContext();
-        if(context) {
+        if(auto context = currentContext()) {
             endComposition(context);
-            context->Release();
         }
     }
 
@@ -675,8 +633,7 @@ STDMETHODIMP TextService::Deactivate() {
 
     // uninitialize language bar
     if(!langBarButtons_.empty()) {
-        ComPtr<ITfLangBarItemMgr> langBarItemMgr;
-        if(threadMgr_->QueryInterface(IID_ITfLangBarItemMgr, (void**)&langBarItemMgr) == S_OK) {
+        if (auto langBarItemMgr = threadMgr_.query<ITfLangBarItemMgr>()) {
             for(auto& button: langBarButtons_) {
                 langBarItemMgr->RemoveItem(button);
             }
@@ -691,8 +648,7 @@ STDMETHODIMP TextService::Deactivate() {
     // unadvice event sinks
 
     // ITfThreadMgrEventSink
-    auto source = threadMgr_.query<ITfSource>();
-    if(source) {
+    if(auto source = threadMgr_.query<ITfSource>()) {
         source->UnadviseSink(threadMgrEventSinkCookie_);
         source->UnadviseSink(activateLanguageProfileNotifySinkCookie_);
         threadMgrEventSinkCookie_ = TF_INVALID_COOKIE;
@@ -702,16 +658,11 @@ STDMETHODIMP TextService::Deactivate() {
     // ITfTextEditSink,
 
     // ITfKeyEventSink
-    auto keystrokeMgr = threadMgr_.query<ITfKeystrokeMgr>();
-    if(keystrokeMgr) {
+    if(auto keystrokeMgr = threadMgr_.query<ITfKeystrokeMgr>()) {
         keystrokeMgr->UnadviseKeyEventSink(clientId_);
         // unregister preserved keys
-        if(!preservedKeys_.empty()) {
-            vector<PreservedKey>::iterator it;
-            for(it = preservedKeys_.begin(); it != preservedKeys_.end(); ++it) {
-                PreservedKey& preservedKey = *it;
-                keystrokeMgr->UnpreserveKey(preservedKey.guid, &preservedKey);
-            }
+        for(const auto& preservedKey: preservedKeys_) {
+            keystrokeMgr->UnpreserveKey(preservedKey.guid, &preservedKey);
         }
     }
 
@@ -719,11 +670,10 @@ STDMETHODIMP TextService::Deactivate() {
 
     // ITfCompartmentEventSink
     // thread specific compartment
-    ComPtr<ITfCompartment> compartment = threadCompartment(GUID_COMPARTMENT_KEYBOARD_OPENCLOSE);
-    if(compartment) {
-        ComPtr<ITfSource> compartmentSource = compartment.query<ITfSource>();
-        if(compartmentSource)
+    if(auto compartment = threadCompartment(GUID_COMPARTMENT_KEYBOARD_OPENCLOSE)) {
+        if (auto compartmentSource = compartment.query<ITfSource>()) {
             compartmentSource->UnadviseSink(keyboardOpenEventSinkCookie_);
+        }
         keyboardOpenEventSinkCookie_ = TF_INVALID_COOKIE;
     }
 
@@ -738,7 +688,7 @@ STDMETHODIMP TextService::Deactivate() {
     }
 */
 
-    threadMgr_ = NULL;
+    threadMgr_ = nullptr;
     clientId_ = TF_CLIENTID_NULL;
     activateFlags_ = 0;
     return S_OK;
@@ -825,16 +775,19 @@ STDMETHODIMP TextService::OnEndEdit(ITfContext *pContext, TfEditCookie ecReadOnl
 
 // ITfKeyEventSink
 STDMETHODIMP TextService::OnSetFocus(BOOL fForeground) {
-    if(fForeground)
+    if (fForeground) {
         onSetFocus();
-    else
+    }
+    else {
         onKillFocus();
+    }
     return S_OK;
 }
 
 STDMETHODIMP TextService::OnTestKeyDown(ITfContext *pContext, WPARAM wParam, LPARAM lParam, BOOL *pfEaten) {
-    if(isKeyboardDisabled(pContext) || !isKeyboardOpened())
+    if (isKeyboardDisabled(pContext) || !isKeyboardOpened()) {
         *pfEaten = FALSE;
+    }
     else {
         KeyEvent keyEvent(WM_KEYDOWN, wParam, lParam);
         *pfEaten = (BOOL)filterKeyDown(keyEvent);
@@ -845,8 +798,9 @@ STDMETHODIMP TextService::OnTestKeyDown(ITfContext *pContext, WPARAM wParam, LPA
 STDMETHODIMP TextService::OnKeyDown(ITfContext *pContext, WPARAM wParam, LPARAM lParam, BOOL *pfEaten) {
     // Some applications do not trigger OnTestKeyDown()
     // So we need to test it again here! Windows TSF sucks!
-    if(isKeyboardDisabled(pContext) || !isKeyboardOpened())
+    if (isKeyboardDisabled(pContext) || !isKeyboardOpened()) {
         *pfEaten = FALSE;
+    }
     else {
         KeyEvent keyEvent(WM_KEYDOWN, wParam, lParam);
         *pfEaten = (BOOL)filterKeyDown(keyEvent);
@@ -872,8 +826,9 @@ STDMETHODIMP TextService::OnKeyDown(ITfContext *pContext, WPARAM wParam, LPARAM 
 }
 
 STDMETHODIMP TextService::OnTestKeyUp(ITfContext *pContext, WPARAM wParam, LPARAM lParam, BOOL *pfEaten) {
-    if(isKeyboardDisabled(pContext) || !isKeyboardOpened())
+    if (isKeyboardDisabled(pContext) || !isKeyboardOpened()) {
         *pfEaten = FALSE;
+    }
     else {
         KeyEvent keyEvent(WM_KEYDOWN, wParam, lParam);
         *pfEaten = (BOOL)filterKeyUp(keyEvent);
@@ -884,8 +839,9 @@ STDMETHODIMP TextService::OnTestKeyUp(ITfContext *pContext, WPARAM wParam, LPARA
 STDMETHODIMP TextService::OnKeyUp(ITfContext *pContext, WPARAM wParam, LPARAM lParam, BOOL *pfEaten) {
     // Some applications do not trigger OnTestKeyDown()
     // So we need to test it again here! Windows TSF sucks!
-    if(isKeyboardDisabled(pContext) || !isKeyboardOpened())
+    if (isKeyboardDisabled(pContext) || !isKeyboardOpened()) {
         *pfEaten = FALSE;
+    }
     else {
         KeyEvent keyEvent(WM_KEYUP, wParam, lParam);
         *pfEaten = (BOOL)filterKeyUp(keyEvent);
@@ -917,11 +873,7 @@ STDMETHODIMP TextService::OnCompositionTerminated(TfEditCookie ecWrite, ITfCompo
     // If we end the composition by calling ITfComposition::EndComposition() ourselves,
     // this event is not triggered.
     onCompositionTerminated(true);
-
-    if(composition_) {
-        composition_->Release();
-        composition_ = NULL;
-    }
+    composition_ = nullptr;
     return S_OK;
 }
 
@@ -975,28 +927,28 @@ STDMETHODIMP TextService::OnActivated(REFCLSID clsid, REFGUID guidProfile, BOOL 
     // we only support one text service, so clsid must be the same as that of our text service.
     // otherwise it's not the notification for our text service, just ignore the event.
     if(clsid == module_->textServiceClsid()) {
-        if(fActivated)
+        if (fActivated) {
             onLangProfileActivated(guidProfile);
-        else
+        }
+        else {
             onLangProfileDeactivated(guidProfile);
+        }
     }
     return S_OK;
 }
 
 // callback from edit session for starting composition
 HRESULT TextService::doStartCompositionEditSession(TfEditCookie cookie, ITfContext* context) {
-    ITfContextComposition* contextComposition;
-    if(context->QueryInterface(IID_ITfContextComposition, (void**)&contextComposition) == S_OK) {
+    if(auto contextComposition = ComPtr<ITfContextComposition>::query(context)) {
         // get current insertion point in the current context
-        ITfRange* range = NULL;
-        ITfInsertAtSelection* insertAtSelection;
-        if(context->QueryInterface(IID_ITfInsertAtSelection, (void **)&insertAtSelection) == S_OK) {
+        ComPtr<ITfRange> range;
+        if(auto insertAtSelection = ComPtr<ITfInsertAtSelection>::query(context)) {
             // get current selection range & insertion position (query only, did not insert any text)
             insertAtSelection->InsertTextAtSelection(cookie, TF_IAS_QUERYONLY, NULL, 0, &range);
-            insertAtSelection->Release();
         }
 
         if(range) {
+            composition_ = nullptr;
             if(contextComposition->StartComposition(cookie, range, (ITfCompositionSink*)this, &composition_) == S_OK) {
                 // according to the TSF sample provided by M$, we need to reset current
                 // selection here. (maybe the range is altered by StartComposition()?
@@ -1008,9 +960,7 @@ HRESULT TextService::doStartCompositionEditSession(TfEditCookie cookie, ITfConte
                 context->SetSelection(cookie, 1, &selection);
                 // we did not release composition_ object. we store it for use later
             }
-            range->Release();
         }
-        contextComposition->Release();
     }
     return S_OK;
 }
@@ -1019,7 +969,7 @@ HRESULT TextService::doStartCompositionEditSession(TfEditCookie cookie, ITfConte
 HRESULT TextService::doEndCompositionEditSession(TfEditCookie cookie, ITfContext* context) {
     if(composition_) {
         // move current insertion point to end of the composition string
-        ITfRange* compositionRange;
+        ComPtr<ITfRange> compositionRange;
         if(composition_->GetRange(&compositionRange) == S_OK) {
             // clear display attribute for the composition range
             ComPtr<ITfProperty> dispAttrProp;
@@ -1035,24 +985,21 @@ HRESULT TextService::doEndCompositionEditSession(TfEditCookie cookie, ITfContext
                 context->SetSelection(cookie, 1, &selection);
                 selection.range->Release();
             }
-            compositionRange->Release();
         }
         // end composition and clean up
         composition_->EndComposition(cookie);
         // do some cleanup in the derived class here
         onCompositionTerminated(false);
-        composition_->Release();
-        composition_ = NULL;
+        composition_ = nullptr;
     }
     return S_OK;
 }
 
-ITfContext* TextService::currentContext() {
-    ITfContext* context = NULL;
-    ITfDocumentMgr  *docMgr;
+ComPtr<ITfContext> TextService::currentContext() {
+    ComPtr<ITfContext> context;
+    ComPtr<ITfDocumentMgr>  docMgr;
     if(threadMgr_->GetFocus(&docMgr) == S_OK) {
         docMgr->GetTop(&context);
-        docMgr->Release();
     }
     return context;
 }
