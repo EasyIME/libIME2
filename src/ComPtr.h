@@ -73,11 +73,11 @@ public:
     // QueryInterface
     template <typename U>
     ComPtr<U> query() {
-        return ComPtr<U>::query(p_);
+        return ComPtr<U>::queryFrom(p_);
     }
 
     // QueryInterface
-    static ComPtr<T> query(IUnknown* p) {
+    static ComPtr<T> queryFrom(IUnknown* p) {
         ComPtr<T> result;
         if(p != nullptr) {
             p->QueryInterface(__uuidof(T), (void**)&result);

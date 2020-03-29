@@ -247,7 +247,7 @@ STDMETHODIMP LangBarButton::GetText(BSTR *pbstrText) {
 // ITfSource
 STDMETHODIMP LangBarButton::AdviseSink(REFIID riid, IUnknown *punk, DWORD *pdwCookie) {
     if(IsEqualIID(riid, IID_ITfLangBarItemSink)) {
-        if(auto langBarItemSink = ComPtr<ITfLangBarItemSink>::query(punk)) {
+        if(auto langBarItemSink = ComPtr<ITfLangBarItemSink>::queryFrom(punk)) {
             *pdwCookie = nextCookie++;
             sinks_.emplace_back(*pdwCookie, langBarItemSink);
             return S_OK;

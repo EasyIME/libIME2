@@ -322,7 +322,7 @@ ComPtr<ITfCompartment> TextService::contextCompartment(const GUID& key, ITfConte
         context = curContext;
     }
     if(context) {
-        auto compartmentMgr = ComPtr<ITfCompartmentMgr>::query(context);
+        auto compartmentMgr = ComPtr<ITfCompartmentMgr>::queryFrom(context);
         if(compartmentMgr) {
             ComPtr<ITfCompartment> compartment;
             compartmentMgr->GetCompartment(key, &compartment);
@@ -939,10 +939,10 @@ STDMETHODIMP TextService::OnActivated(REFCLSID clsid, REFGUID guidProfile, BOOL 
 
 // callback from edit session for starting composition
 HRESULT TextService::doStartCompositionEditSession(TfEditCookie cookie, ITfContext* context) {
-    if(auto contextComposition = ComPtr<ITfContextComposition>::query(context)) {
+    if(auto contextComposition = ComPtr<ITfContextComposition>::queryFrom(context)) {
         // get current insertion point in the current context
         ComPtr<ITfRange> range;
-        if(auto insertAtSelection = ComPtr<ITfInsertAtSelection>::query(context)) {
+        if(auto insertAtSelection = ComPtr<ITfInsertAtSelection>::queryFrom(context)) {
             // get current selection range & insertion position (query only, did not insert any text)
             insertAtSelection->InsertTextAtSelection(cookie, TF_IAS_QUERYONLY, NULL, 0, &range);
         }
