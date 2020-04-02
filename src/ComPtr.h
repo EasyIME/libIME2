@@ -72,7 +72,7 @@ public:
 
     // QueryInterface
     template <typename U>
-    ComPtr<U> query() {
+    ComPtr<U> query() const {
         return ComPtr<U>::queryFrom(p_);
     }
 
