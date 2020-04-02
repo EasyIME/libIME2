@@ -27,6 +27,7 @@
 #include "ComPtr.h"
 #include "DisplayAttributeInfo.h"
 #include "DisplayAttributeProvider.h"
+#include "SinkAdvice.h"
 #include "ComObject.h"
 
 #include <vector>
@@ -155,10 +156,6 @@ public:
     void setThreadCompartmentValue(const GUID& key, DWORD value);
     void setContextCompartmentValue(const GUID& key, DWORD value, ITfContext* context = NULL);
 
-    // manage sinks to global or thread compartment (context specific compartment is not used)
-    void addCompartmentMonitor(const GUID key, bool isGlobal = false);
-    void removeCompartmentMonitor(const GUID key);
-
     // virtual functions that IME implementors may need to override
     virtual void onActivate();
     virtual void onDeactivate();
@@ -256,15 +253,6 @@ protected:
         GUID guid;
     };
 
-    struct CompartmentMonitor {
-        GUID guid;
-        DWORD cookie;
-        bool isGlobal;
-
-        bool operator == (const GUID& other) const {
-            return bool(::IsEqualGUID(guid, other));
-        }
-    };
 
 protected: // COM object should not be deleted directly. calling Release() instead.
     virtual ~TextService(void);
@@ -278,19 +266,19 @@ private:
     bool isKeyboardOpened_;
 
     // event sink cookies
-    DWORD threadMgrEventSinkCookie_;
+    SinkAdvice threadMgrEventSinkCookie_;
+    SinkAdvice activateLanguageProfileNotifySinkCookie_;
+    SinkAdvice keyboardOPenCloseSink_;
     DWORD textEditSinkCookie_;
     DWORD compositionSinkCookie_;
     DWORD keyboardOpenEventSinkCookie_;
     DWORD globalCompartmentEventSinkCookie_;
     DWORD langBarSinkCookie_;
-    DWORD activateLanguageProfileNotifySinkCookie_;
 
     ComPtr<ITfComposition> composition_; // acquired when starting composition, released when ending composition
     ComPtr<ITfLangBarMgr> langBarMgr_;
     std::vector<ComPtr<LangBarButton>> langBarButtons_;
     std::vector<PreservedKey> preservedKeys_;
-    std::vector<CompartmentMonitor> compartmentMonitors_;
 };
 
 }

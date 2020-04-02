@@ -39,30 +39,15 @@ TextService::TextService(ImeModule* module):
     clientId_(TF_CLIENTID_NULL),
     activateFlags_(0),
     isKeyboardOpened_(false),
-    threadMgrEventSinkCookie_(TF_INVALID_COOKIE),
     textEditSinkCookie_(TF_INVALID_COOKIE),
     compositionSinkCookie_(TF_INVALID_COOKIE),
     keyboardOpenEventSinkCookie_(TF_INVALID_COOKIE),
     globalCompartmentEventSinkCookie_(TF_INVALID_COOKIE),
-    langBarSinkCookie_(TF_INVALID_COOKIE),
-    activateLanguageProfileNotifySinkCookie_(TF_INVALID_COOKIE) {
+    langBarSinkCookie_(TF_INVALID_COOKIE) {
 
-    addCompartmentMonitor(GUID_COMPARTMENT_KEYBOARD_OPENCLOSE, false);
 }
 
 TextService::~TextService(void) {
-    // This should only happen in rare cases
-    for(auto& monitor : compartmentMonitors_) {
-        ComPtr<ITfSource> source;
-        if(monitor.isGlobal)
-            source = globalCompartment(monitor.guid).query<ITfSource>();
-        else
-            source = threadCompartment(monitor.guid).query<ITfSource>();
-        if (source) {
-            source->UnadviseSink(monitor.cookie);
-        }
-    }
-
     if(langBarMgr_) {
         langBarMgr_->UnadviseEventSink(langBarSinkCookie_);
     }
@@ -428,43 +413,6 @@ void TextService::setContextCompartmentValue(const GUID& key, DWORD value, ITfCo
     }
 }
 
-
-void TextService::addCompartmentMonitor(const GUID key, bool isGlobal) {
-    CompartmentMonitor monitor;
-    monitor.guid = key;
-    monitor.cookie = 0;
-    monitor.isGlobal = isGlobal;
-    // if the text service is activated
-    if(threadMgr_) {
-        ComPtr<ITfSource> source;
-        if(isGlobal)
-            source = globalCompartment(key).query<ITfSource>();
-        else
-            source = threadCompartment(key).query<ITfSource>();
-        if(source) {
-            source->AdviseSink(IID_ITfCompartmentEventSink, (ITfCompartmentEventSink*)this, &monitor.cookie);
-        }
-    }
-    compartmentMonitors_.push_back(monitor);
-}
-
-void TextService::removeCompartmentMonitor(const GUID key) {
-    vector<CompartmentMonitor>::iterator it;
-    it = find(compartmentMonitors_.begin(), compartmentMonitors_.end(), key);
-    if(it != compartmentMonitors_.end()) {
-        if(threadMgr_) {
-            ComPtr<ITfSource> source;
-            if(it->isGlobal)
-                source = globalCompartment(key).query<ITfSource>();
-            else
-                source = threadCompartment(key).query<ITfSource>();
-            source->UnadviseSink(it->cookie);
-        }
-        compartmentMonitors_.erase(it);
-    }
-}
-
-
 // virtual
 void TextService::onActivate() {
 }
@@ -563,8 +511,8 @@ STDMETHODIMP TextService::Activate(ITfThreadMgr *pThreadMgr, TfClientId tfClient
 
     // ITfThreadMgrEventSink, ITfActiveLanguageProfileNotifySink
     if(auto source = threadMgr_.query<ITfSource>()) {
-        source->AdviseSink(IID_ITfThreadMgrEventSink, (ITfThreadMgrEventSink *)this, &threadMgrEventSinkCookie_);
-        source->AdviseSink(IID_ITfActiveLanguageProfileNotifySink, (ITfActiveLanguageProfileNotifySink *)this, &activateLanguageProfileNotifySinkCookie_);
+        threadMgrEventSinkCookie_ = SinkAdvice(source, IID_ITfThreadMgrEventSink, (ITfThreadMgrEventSink *)this);
+        activateLanguageProfileNotifySinkCookie_ = SinkAdvice(source, IID_ITfActiveLanguageProfileNotifySink, (ITfActiveLanguageProfileNotifySink *)this);
     }
 
     // ITfTextEditSink,
@@ -582,18 +530,12 @@ STDMETHODIMP TextService::Activate(ITfThreadMgr *pThreadMgr, TfClientId tfClient
     // ITfCompositionSink
 
     // ITfCompartmentEventSink
+
     // get current keyboard state
-    for(auto& monitor: compartmentMonitors_) {
-        ComPtr<ITfSource> compartmentSource;
-        if (monitor.isGlobal) {    // global compartment
-            compartmentSource = globalCompartment(monitor.guid).query<ITfSource>();
-        }
-        else {     // thread specific compartment
-            compartmentSource = threadCompartment(monitor.guid).query<ITfSource>();
-        }
-        compartmentSource->AdviseSink(IID_ITfCompartmentEventSink, (ITfCompartmentEventSink*)this, &monitor.cookie);
-    }
     isKeyboardOpened_ = threadCompartmentValue(GUID_COMPARTMENT_KEYBOARD_OPENCLOSE) != 0;
+    if (auto source = threadCompartment(GUID_COMPARTMENT_KEYBOARD_OPENCLOSE).query<ITfSource>()) {
+        keyboardOPenCloseSink_ = SinkAdvice(source, IID_ITfCompartmentEventSink, (ITfCompartmentEventSink*)this);
+    }
 
     // FIXME: under Windows 7, it seems that the keyboard is closed every time
     // our text service is activated. The value in the compartment is always empty. :-(
@@ -648,12 +590,8 @@ STDMETHODIMP TextService::Deactivate() {
     // unadvice event sinks
 
     // ITfThreadMgrEventSink
-    if(auto source = threadMgr_.query<ITfSource>()) {
-        source->UnadviseSink(threadMgrEventSinkCookie_);
-        source->UnadviseSink(activateLanguageProfileNotifySinkCookie_);
-        threadMgrEventSinkCookie_ = TF_INVALID_COOKIE;
-        activateLanguageProfileNotifySinkCookie_ = TF_INVALID_COOKIE;
-    }
+    threadMgrEventSinkCookie_.unadvise();
+    activateLanguageProfileNotifySinkCookie_.unadvise();
 
     // ITfTextEditSink,
 
@@ -669,24 +607,7 @@ STDMETHODIMP TextService::Deactivate() {
     // ITfCompositionSink
 
     // ITfCompartmentEventSink
-    // thread specific compartment
-    if(auto compartment = threadCompartment(GUID_COMPARTMENT_KEYBOARD_OPENCLOSE)) {
-        if (auto compartmentSource = compartment.query<ITfSource>()) {
-            compartmentSource->UnadviseSink(keyboardOpenEventSinkCookie_);
-        }
-        keyboardOpenEventSinkCookie_ = TF_INVALID_COOKIE;
-    }
-
-/*
-    // global compartment
-    compartment = globalCompartment(XXX_GUID);
-    if(compartment) {
-        ComQIPtr<ITfSource> compartmentSource = compartment;
-        if(compartmentSource)
-            compartmentSource->UnadviseSink(globalCompartmentEventSinkCookie_);
-        globalCompartmentEventSinkCookie_ = TF_INVALID_COOKIE;
-    }
-*/
+    keyboardOPenCloseSink_.unadvise();
 
     threadMgr_ = nullptr;
     clientId_ = TF_CLIENTID_NULL;
