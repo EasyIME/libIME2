@@ -250,9 +250,6 @@ public:
 
 protected:
 
-    HRESULT doStartCompositionEditSession(TfEditCookie cookie, ITfContext* context);
-    HRESULT doEndCompositionEditSession(TfEditCookie cookie, ITfContext* context);
-
     struct PreservedKey : public TF_PRESERVEDKEY {
         GUID guid;
     };

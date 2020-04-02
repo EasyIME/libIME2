@@ -170,25 +170,69 @@ bool TextService::isInsertionAllowed(EditSession* session) const {
 void TextService::startComposition(ITfContext* context) {
     assert(context);
     HRESULT sessionResult;
-    auto session = ComPtr<EditSession>::make(
+    auto editSession = ComPtr<EditSession>::make(
         context,
         [=](EditSession* session, TfEditCookie cookie) {
-            doStartCompositionEditSession(cookie, context);
+            if (auto contextComposition = ComPtr<ITfContextComposition>::queryFrom(context)) {
+                // get current insertion point in the current context
+                ComPtr<ITfRange> range;
+                if (auto insertAtSelection = ComPtr<ITfInsertAtSelection>::queryFrom(context)) {
+                    // get current selection range & insertion position (query only, did not insert any text)
+                    insertAtSelection->InsertTextAtSelection(cookie, TF_IAS_QUERYONLY, NULL, 0, &range);
+                }
+
+                if (range) {
+                    composition_ = nullptr;
+                    if (contextComposition->StartComposition(cookie, range, (ITfCompositionSink*)this, &composition_) == S_OK) {
+                        // according to the official TSF samples, we need to reset the current
+                        // selection here. (maybe the range is altered by StartComposition()?
+                        TF_SELECTION selection;
+                        selection.range = range;
+                        selection.style.ase = TF_AE_NONE;
+                        selection.style.fInterimChar = FALSE;
+                        context->SetSelection(cookie, 1, &selection);
+                    }
+                }
+            }
         }
     );
-    context->RequestEditSession(clientId_, session, TF_ES_SYNC|TF_ES_READWRITE, &sessionResult);
+    context->RequestEditSession(clientId_, editSession, TF_ES_SYNC|TF_ES_READWRITE, &sessionResult);
 }
 
 void TextService::endComposition(ITfContext* context) {
     assert(context);
     HRESULT sessionResult;
-    auto session = ComPtr<EditSession>::make(
+    auto editSession = ComPtr<EditSession>::make(
         context,
         [=](EditSession* session, TfEditCookie cookie) {
-            doEndCompositionEditSession(cookie, context);
+            if (composition_) {
+                // move current insertion point to end of the composition string
+                ComPtr<ITfRange> compositionRange;
+                if (composition_->GetRange(&compositionRange) == S_OK) {
+                    // clear display attribute for the composition range
+                    ComPtr<ITfProperty> dispAttrProp;
+                    if (context->GetProperty(GUID_PROP_ATTRIBUTE, &dispAttrProp) == S_OK) {
+                        dispAttrProp->Clear(cookie, compositionRange);
+                    }
+
+                    TF_SELECTION selection;
+                    ULONG selectionNum;
+                    if (context->GetSelection(cookie, TF_DEFAULT_SELECTION, 1, &selection, &selectionNum) == S_OK) {
+                        selection.range->ShiftEndToRange(cookie, compositionRange, TF_ANCHOR_END);
+                        selection.range->Collapse(cookie, TF_ANCHOR_END);
+                        context->SetSelection(cookie, 1, &selection);
+                        selection.range->Release();
+                    }
+                }
+                // end composition and clean up
+                composition_->EndComposition(cookie);
+                // do some cleanup in the derived class here
+                onCompositionTerminated(false);
+                composition_ = nullptr;
+            }
         }
     );
-    context->RequestEditSession(clientId_, session, TF_ES_SYNC|TF_ES_READWRITE, &sessionResult);
+    context->RequestEditSession(clientId_, editSession, TF_ES_SYNC|TF_ES_READWRITE, &sessionResult);
 }
 
 std::wstring TextService::compositionString(EditSession* session) const {
@@ -818,64 +862,6 @@ STDMETHODIMP TextService::OnActivated(REFCLSID clsid, REFGUID guidProfile, BOOL 
         else {
             onLangProfileDeactivated(guidProfile);
         }
-    }
-    return S_OK;
-}
-
-// callback from edit session for starting composition
-HRESULT TextService::doStartCompositionEditSession(TfEditCookie cookie, ITfContext* context) {
-    if(auto contextComposition = ComPtr<ITfContextComposition>::queryFrom(context)) {
-        // get current insertion point in the current context
-        ComPtr<ITfRange> range;
-        if(auto insertAtSelection = ComPtr<ITfInsertAtSelection>::queryFrom(context)) {
-            // get current selection range & insertion position (query only, did not insert any text)
-            insertAtSelection->InsertTextAtSelection(cookie, TF_IAS_QUERYONLY, NULL, 0, &range);
-        }
-
-        if(range) {
-            composition_ = nullptr;
-            if(contextComposition->StartComposition(cookie, range, (ITfCompositionSink*)this, &composition_) == S_OK) {
-                // according to the TSF sample provided by M$, we need to reset current
-                // selection here. (maybe the range is altered by StartComposition()?
-                // So mysterious. TSF is absolutely overly-engineered!
-                TF_SELECTION selection;
-                selection.range = range;
-                selection.style.ase = TF_AE_NONE;
-                selection.style.fInterimChar = FALSE;
-                context->SetSelection(cookie, 1, &selection);
-                // we did not release composition_ object. we store it for use later
-            }
-        }
-    }
-    return S_OK;
-}
-
-// callback from edit session for ending composition
-HRESULT TextService::doEndCompositionEditSession(TfEditCookie cookie, ITfContext* context) {
-    if(composition_) {
-        // move current insertion point to end of the composition string
-        ComPtr<ITfRange> compositionRange;
-        if(composition_->GetRange(&compositionRange) == S_OK) {
-            // clear display attribute for the composition range
-            ComPtr<ITfProperty> dispAttrProp;
-            if(context->GetProperty(GUID_PROP_ATTRIBUTE, &dispAttrProp) == S_OK) {
-                dispAttrProp->Clear(cookie, compositionRange);
-            }
-
-            TF_SELECTION selection;
-            ULONG selectionNum;
-            if(context->GetSelection(cookie, TF_DEFAULT_SELECTION, 1, &selection, &selectionNum) == S_OK) {
-                selection.range->ShiftEndToRange(cookie, compositionRange, TF_ANCHOR_END);
-                selection.range->Collapse(cookie, TF_ANCHOR_END);
-                context->SetSelection(cookie, 1, &selection);
-                selection.range->Release();
-            }
-        }
-        // end composition and clean up
-        composition_->EndComposition(cookie);
-        // do some cleanup in the derived class here
-        onCompositionTerminated(false);
-        composition_ = nullptr;
     }
     return S_OK;
 }
