@@ -117,7 +117,6 @@ private:
     std::mutex refCountMutex_;
     HINSTANCE hInstance_;
     CLSID textServiceClsid_;
-    wchar_t* tooltip_;
 
     // display attributes
     std::list< ComPtr<DisplayAttributeInfo>> displayAttrInfos_;
