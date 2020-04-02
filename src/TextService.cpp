@@ -140,7 +140,7 @@ bool TextService::isKeyboardOpened() {
 
 void TextService::setKeyboardOpen(bool open) {
     if(open != isKeyboardOpened_) {
-        setThreadCompartmentValue(GUID_COMPARTMENT_KEYBOARD_OPENCLOSE, (DWORD)open);
+        setThreadCompartmentValue(GUID_COMPARTMENT_KEYBOARD_OPENCLOSE, DWORD(open));
     }
 }
 
@@ -277,15 +277,20 @@ void TextService::setCompositionCursor(EditSession* session, int pos) {
 
 // compartment handling
 ComPtr<ITfCompartment> TextService::globalCompartment(const GUID& key) {
-    if(threadMgr_) {
+    ComPtr<ITfCompartment> compartment;
+    auto threadMgr = threadMgr_;
+    if (threadMgr == nullptr) {
+        // if we don't have a thread manager (this is possible when we try to access
+        // a global compartment while the text service is not activated)
+        ::CoCreateInstance(CLSID_TF_ThreadMgr, NULL, CLSCTX_INPROC_SERVER, IID_ITfThreadMgr, (void**)&threadMgr);
+    }
+    if(threadMgr) {
         ComPtr<ITfCompartmentMgr> compartmentMgr;
         if(threadMgr_->GetGlobalCompartment(&compartmentMgr) == S_OK) {
-            ComPtr<ITfCompartment> compartment;
             compartmentMgr->GetCompartment(key, &compartment);
-            return compartment;
         }
     }
-    return NULL;
+    return compartment;
 }
 
 ComPtr<ITfCompartment> TextService::threadCompartment(const GUID& key) {
@@ -317,100 +322,59 @@ ComPtr<ITfCompartment> TextService::contextCompartment(const GUID& key, ITfConte
     return nullptr;
 }
 
-
 DWORD TextService::globalCompartmentValue(const GUID& key) {
-    ComPtr<ITfCompartment> compartment = globalCompartment(key);
-    if(compartment) {
-        VARIANT var;
-        if(compartment->GetValue(&var) == S_OK && var.vt == VT_I4) {
-            return (DWORD)var.lVal;
-        }
-    }
-    return 0;
-}
-
-DWORD TextService::threadCompartmentValue(const GUID& key) {
-    ComPtr<ITfCompartment> compartment = threadCompartment(key);
-    if(compartment) {
-        VARIANT var;
-        ::VariantInit(&var);
-        HRESULT r = compartment->GetValue(&var);
-        if(r == S_OK) {
-            if(var.vt == VT_I4)
-                return (DWORD)var.lVal;
-        }
-    }
-    return 0;
-}
-
-DWORD TextService::contextCompartmentValue(const GUID& key, ITfContext* context) {
-    ComPtr<ITfCompartment> compartment = contextCompartment(key, context);
-    if(compartment) {
-        VARIANT var;
-        if(compartment->GetValue(&var) == S_OK && var.vt == VT_I4) {
-            return (DWORD)var.lVal;
-        }
+    if (auto compartment = globalCompartment(key)) {
+        return compartmentValue(compartment);
     }
     return 0;
 }
 
 void TextService::setGlobalCompartmentValue(const GUID& key, DWORD value) {
-    if(threadMgr_) {
-        ComPtr<ITfCompartment> compartment = globalCompartment(key);
-        if(compartment) {
-            VARIANT var;
-            ::VariantInit(&var);
-            var.vt = VT_I4;
-            var.lVal = value;
-            compartment->SetValue(clientId_, &var);
-        }
-    }
-    else {
-        // if we don't have a thread manager (this is possible when we try to set
-        // a global compartment value while the text service is not activated)
-        ComPtr<ITfThreadMgr> threadMgr;
-        if(::CoCreateInstance(CLSID_TF_ThreadMgr, NULL, CLSCTX_INPROC_SERVER, IID_ITfThreadMgr, (void**)&threadMgr) == S_OK) {
-            if(threadMgr) {
-                ComPtr<ITfCompartmentMgr> compartmentMgr;
-                if(threadMgr->GetGlobalCompartment(&compartmentMgr) == S_OK) {
-                    ComPtr<ITfCompartment> compartment;
-                    if(compartmentMgr->GetCompartment(key, &compartment) == S_OK && compartment) {
-                        TfClientId id;
-                        if(threadMgr->Activate(&id) == S_OK) {
-                            VARIANT var;
-                            ::VariantInit(&var);
-                            var.vt = VT_I4;
-                            var.lVal = value;
-                            compartment->SetValue(id, &var);
-                            threadMgr->Deactivate();
-                        }
-                    }
-                }
-            }
-        }
-    }
+    if (auto compartment = globalCompartment(key)) {
+        setCompartmentValue(compartment, value);
+    };
 }
 
-void TextService::setThreadCompartmentValue(const GUID& key, DWORD value) {
-    ComPtr<ITfCompartment> compartment = threadCompartment(key);
-    if(compartment) {
-        VARIANT var;
-        ::VariantInit(&var);
-        var.vt = VT_I4;
-        var.lVal = value;
-        compartment->SetValue(clientId_, &var);
+DWORD TextService::contextCompartmentValue(const GUID& key, ITfContext* context) {
+    if (auto compartment = contextCompartment(key)) {
+        return compartmentValue(compartment);
     }
+    return 0;
 }
 
 void TextService::setContextCompartmentValue(const GUID& key, DWORD value, ITfContext* context) {
-    ComPtr<ITfCompartment> compartment = contextCompartment(key, context);
-    if(compartment) {
-        VARIANT var;
-        ::VariantInit(&var);
-        var.vt = VT_I4;
-        var.lVal = value;
-        compartment->SetValue(clientId_, &var);
+    if (auto compartment = contextCompartment(key, context)) {
+        setCompartmentValue(compartment, value);
     }
+}
+
+DWORD TextService::threadCompartmentValue(const GUID& key) {
+    if (auto compartment = threadCompartment(key)) {
+        return compartmentValue(compartment);
+    }
+    return 0;
+}
+
+void TextService::setThreadCompartmentValue(const GUID& key, DWORD value) {
+    if (auto compartment = threadCompartment(key)) {
+        setCompartmentValue(compartment, value);
+    }
+}
+
+DWORD TextService::compartmentValue(ITfCompartment* compartment) {
+    VARIANT var;
+    if (compartment->GetValue(&var) == S_OK && var.vt == VT_I4) {
+        return (DWORD)var.lVal;
+    }
+    return 0;
+}
+
+void TextService::setCompartmentValue(ITfCompartment* compartment, DWORD value) {
+    VARIANT var;
+    ::VariantInit(&var);
+    var.vt = VT_I4;
+    var.lVal = value;
+    compartment->SetValue(clientId_, &var);
 }
 
 // virtual

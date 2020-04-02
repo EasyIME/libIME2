@@ -149,12 +149,16 @@ public:
     ComPtr<ITfCompartment> contextCompartment(const GUID& key, ITfContext* context = NULL);
 
     DWORD globalCompartmentValue(const GUID& key);
-    DWORD threadCompartmentValue(const GUID& key);
-    DWORD contextCompartmentValue(const GUID& key, ITfContext* context = NULL);
-
     void setGlobalCompartmentValue(const GUID& key, DWORD value);
+
+    DWORD threadCompartmentValue(const GUID& key);
     void setThreadCompartmentValue(const GUID& key, DWORD value);
-    void setContextCompartmentValue(const GUID& key, DWORD value, ITfContext* context = NULL);
+
+    DWORD contextCompartmentValue(const GUID& key, ITfContext* context = NULL);
+    void setContextCompartmentValue(const GUID& key, DWORD value, ITfContext* context = nullptr);
+
+    DWORD compartmentValue(ITfCompartment* compartment);
+    void setCompartmentValue(ITfCompartment* compartment, DWORD value);
 
     // virtual functions that IME implementors may need to override
     virtual void onActivate();
