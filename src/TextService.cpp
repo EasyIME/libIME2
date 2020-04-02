@@ -119,31 +119,31 @@ void TextService::removePreservedKey(const GUID& guid) {
 
 // text composition
 
-bool TextService::isComposing() {
+bool TextService::isComposing() const {
     return (composition_ != nullptr);
 }
 
 // is keyboard disabled for the context (NULL means current context)
-bool TextService::isKeyboardDisabled(ITfContext* context) {
+bool TextService::isKeyboardDisabled(ITfContext* context) const {
     return (contextCompartmentValue(GUID_COMPARTMENT_KEYBOARD_DISABLED, context)
         || contextCompartmentValue(GUID_COMPARTMENT_EMPTYCONTEXT, context));
 }
 
 // is keyboard opened for the whole thread
-bool TextService::isKeyboardOpened() {
+bool TextService::isKeyboardOpened() const {
     return isKeyboardOpened_;
 }
 
 void TextService::setKeyboardOpen(bool open) {
     if(open != isKeyboardOpened_) {
+        // The event handler triggered by the compartment value will update isKeyboardOpened_.
         setThreadCompartmentValue(GUID_COMPARTMENT_KEYBOARD_OPENCLOSE, DWORD(open));
     }
 }
 
-
 // check if current insertion point is in the range of composition.
 // if not in range, insertion is now allowed
-bool TextService::isInsertionAllowed(EditSession* session) {
+bool TextService::isInsertionAllowed(EditSession* session) const {
     TfEditCookie cookie = session->editCookie();
     ULONG selectionNum;
     if(isComposing()) {
@@ -191,7 +191,7 @@ void TextService::endComposition(ITfContext* context) {
     context->RequestEditSession(clientId_, session, TF_ES_SYNC|TF_ES_READWRITE, &sessionResult);
 }
 
-std::wstring TextService::compositionString(EditSession* session) {
+std::wstring TextService::compositionString(EditSession* session) const {
     if (composition_) {
         ComPtr<ITfRange> compositionRange;
         if (composition_->GetRange(&compositionRange) == S_OK) {
@@ -212,7 +212,7 @@ std::wstring TextService::compositionString(EditSession* session) {
     return std::wstring();
 }
 
-void TextService::setCompositionString(EditSession* session, const wchar_t* str, int len) {
+void TextService::setCompositionString(EditSession* session, const wchar_t* str, int len) const {
     ITfContext* context = session->context();
     if(context) {
         TfEditCookie editCookie = session->editCookie();
@@ -249,7 +249,7 @@ void TextService::setCompositionString(EditSession* session, const wchar_t* str,
 
 // set cursor position in the composition area
 // 0 means the start pos of composition string
-void TextService::setCompositionCursor(EditSession* session, int pos) {
+void TextService::setCompositionCursor(EditSession* session, int pos) const {
     TF_SELECTION selection;
     ULONG selectionNum;
     // get current selection
@@ -272,7 +272,7 @@ void TextService::setCompositionCursor(EditSession* session, int pos) {
 }
 
 // compartment handling
-ComPtr<ITfCompartment> TextService::globalCompartment(const GUID& key) {
+ComPtr<ITfCompartment> TextService::globalCompartment(const GUID& key) const {
     ComPtr<ITfCompartment> compartment;
     auto threadMgr = threadMgr_;
     if (threadMgr == nullptr) {
@@ -289,7 +289,7 @@ ComPtr<ITfCompartment> TextService::globalCompartment(const GUID& key) {
     return compartment;
 }
 
-ComPtr<ITfCompartment> TextService::threadCompartment(const GUID& key) {
+ComPtr<ITfCompartment> TextService::threadCompartment(const GUID& key) const {
     if(threadMgr_) {
         auto compartmentMgr = threadMgr_.query<ITfCompartmentMgr>();
         if(compartmentMgr) {
@@ -301,7 +301,7 @@ ComPtr<ITfCompartment> TextService::threadCompartment(const GUID& key) {
     return nullptr;
 }
 
-ComPtr<ITfCompartment> TextService::contextCompartment(const GUID& key, ITfContext* context) {
+ComPtr<ITfCompartment> TextService::contextCompartment(const GUID& key, ITfContext* context) const {
     ComPtr<ITfContext> curContext;
     if(!context) {
         curContext = currentContext();
@@ -318,46 +318,46 @@ ComPtr<ITfCompartment> TextService::contextCompartment(const GUID& key, ITfConte
     return nullptr;
 }
 
-DWORD TextService::globalCompartmentValue(const GUID& key) {
+DWORD TextService::globalCompartmentValue(const GUID& key) const{
     if (auto compartment = globalCompartment(key)) {
         return compartmentValue(compartment);
     }
     return 0;
 }
 
-void TextService::setGlobalCompartmentValue(const GUID& key, DWORD value) {
+void TextService::setGlobalCompartmentValue(const GUID& key, DWORD value) const {
     if (auto compartment = globalCompartment(key)) {
         setCompartmentValue(compartment, value);
     };
 }
 
-DWORD TextService::contextCompartmentValue(const GUID& key, ITfContext* context) {
+DWORD TextService::contextCompartmentValue(const GUID& key, ITfContext* context) const {
     if (auto compartment = contextCompartment(key)) {
         return compartmentValue(compartment);
     }
     return 0;
 }
 
-void TextService::setContextCompartmentValue(const GUID& key, DWORD value, ITfContext* context) {
+void TextService::setContextCompartmentValue(const GUID& key, DWORD value, ITfContext* context) const {
     if (auto compartment = contextCompartment(key, context)) {
         setCompartmentValue(compartment, value);
     }
 }
 
-DWORD TextService::threadCompartmentValue(const GUID& key) {
+DWORD TextService::threadCompartmentValue(const GUID& key) const {
     if (auto compartment = threadCompartment(key)) {
         return compartmentValue(compartment);
     }
     return 0;
 }
 
-void TextService::setThreadCompartmentValue(const GUID& key, DWORD value) {
+void TextService::setThreadCompartmentValue(const GUID& key, DWORD value) const {
     if (auto compartment = threadCompartment(key)) {
         setCompartmentValue(compartment, value);
     }
 }
 
-DWORD TextService::compartmentValue(ITfCompartment* compartment) {
+DWORD TextService::compartmentValue(ITfCompartment* compartment) const {
     VARIANT var;
     if (compartment->GetValue(&var) == S_OK && var.vt == VT_I4) {
         return (DWORD)var.lVal;
@@ -365,7 +365,7 @@ DWORD TextService::compartmentValue(ITfCompartment* compartment) {
     return 0;
 }
 
-void TextService::setCompartmentValue(ITfCompartment* compartment, DWORD value) {
+void TextService::setCompartmentValue(ITfCompartment* compartment, DWORD value) const {
     VARIANT var;
     ::VariantInit(&var);
     var.vt = VT_I4;
@@ -454,21 +454,18 @@ void TextService::onLangProfileActivated(REFGUID guidProfile) {
 void TextService::onLangProfileDeactivated(REFGUID guidProfile) {
 }
 
-// COM stuff
-
-// ITfTextInputProcessor
-STDMETHODIMP TextService::Activate(ITfThreadMgr *pThreadMgr, TfClientId tfClientId) {
-    // store tsf manager & client id
-    threadMgr_ = pThreadMgr;
-    clientId_ = tfClientId;
-
-    activateFlags_ = 0;
-    if(auto threadMgrEx = threadMgr_.query<ITfThreadMgrEx>()) {
-        threadMgrEx->GetActiveFlags(&activateFlags_);
+void TextService::initKeyboardState() {
+    // get current keyboard state
+    isKeyboardOpened_ = threadCompartmentValue(GUID_COMPARTMENT_KEYBOARD_OPENCLOSE) != 0;
+    // FIXME: under Windows 7, it seems that the keyboard is closed every time
+    // our text service is activated. The value in the compartment is always empty. :-(
+    // So, we open the keyboard manually here, but I'm not sure if this is the correct behavior.
+    if (!isKeyboardOpened_) {
+        setKeyboardOpen(true);
     }
+}
 
-    // advice event sinks (set up event listeners)
-
+void TextService::installEventListeners() {
     // ITfThreadMgrEventSink, ITfActiveLanguageProfileNotifySink, and ITfTextEditSink
     if (auto source = threadMgr_.query<ITfSource>()) {
         threadMgrEventSink_ = SinkAdvice{ source, IID_ITfThreadMgrEventSink, static_cast<ITfThreadMgrEventSink*>(this) };
@@ -486,33 +483,78 @@ STDMETHODIMP TextService::Activate(ITfThreadMgr *pThreadMgr, TfClientId tfClient
         }
     }
 
-    // get current keyboard state
-    isKeyboardOpened_ = threadCompartmentValue(GUID_COMPARTMENT_KEYBOARD_OPENCLOSE) != 0;
+    // Keyboard open status change.
     if (auto source = threadCompartment(GUID_COMPARTMENT_KEYBOARD_OPENCLOSE).query<ITfSource>()) {
         keyboardOPenCloseSink_ = SinkAdvice(source, IID_ITfCompartmentEventSink, (ITfCompartmentEventSink*)this);
     }
+}
 
-    // FIXME: under Windows 7, it seems that the keyboard is closed every time
-    // our text service is activated. The value in the compartment is always empty. :-(
-    // So, we open the keyboard manually here, but I'm not sure if this is the correct behavior.
-    if (!isKeyboardOpened_) {
-        setKeyboardOpen(true);
+void TextService::uninstallEventListeners() {
+    // ITfThreadMgrEventSink, ITfActiveLanguageProfileNotifySink, and ITfTextEditSink
+    threadMgrEventSink_.unadvise();
+    activateLanguageProfileNotifySink_.unadvise();
+    textEditSink_.unadvise();
+
+    // ITfKeyEventSink
+    if (auto keystrokeMgr = threadMgr_.query<ITfKeystrokeMgr>()) {
+        keystrokeMgr->UnadviseKeyEventSink(clientId_);
+        // unregister preserved keys
+        for (const auto& preservedKey : preservedKeys_) {
+            keystrokeMgr->UnpreserveKey(preservedKey.guid, &preservedKey);
+        }
     }
 
-    // initialize language bar
+    // Keyboard open status change.
+    keyboardOPenCloseSink_.unadvise();
+}
+
+void TextService::activateLanguageButtons() {
     ::CoCreateInstance(CLSID_TF_LangBarMgr, NULL, CLSCTX_INPROC_SERVER,
-                      IID_ITfLangBarMgr, (void**)&langBarMgr_);
-    if(langBarMgr_) {
+        IID_ITfLangBarMgr, (void**)&langBarMgr_);
+    if (langBarMgr_) {
         langBarMgr_->AdviseEventSink(this, NULL, 0, &langBarSinkCookie_);
     }
     // Note: language bar has no effects in Win 8 immersive mode
-    if(!langBarButtons_.empty()) {
-        if(auto langBarItemMgr = threadMgr_.query<ITfLangBarItemMgr>()) {
-            for(auto& button: langBarButtons_) {
+    if (!langBarButtons_.empty()) {
+        if (auto langBarItemMgr = threadMgr_.query<ITfLangBarItemMgr>()) {
+            for (auto& button : langBarButtons_) {
                 langBarItemMgr->AddItem(button);
             }
         }
     }
+}
+
+void TextService::deactivateLanguageButtons() {
+    if (!langBarButtons_.empty()) {
+        if (auto langBarItemMgr = threadMgr_.query<ITfLangBarItemMgr>()) {
+            for (auto& button : langBarButtons_) {
+                langBarItemMgr->RemoveItem(button);
+            }
+        }
+    }
+    if (langBarMgr_) {
+        langBarMgr_->UnadviseEventSink(langBarSinkCookie_);
+        langBarSinkCookie_ = TF_INVALID_COOKIE;
+        langBarMgr_ = NULL;
+    }
+}
+
+// COM stuff
+
+// ITfTextInputProcessor
+STDMETHODIMP TextService::Activate(ITfThreadMgr *pThreadMgr, TfClientId tfClientId) {
+    // store tsf manager & client id
+    threadMgr_ = pThreadMgr;
+    clientId_ = tfClientId;
+
+    activateFlags_ = 0;
+    if(auto threadMgrEx = threadMgr_.query<ITfThreadMgrEx>()) {
+        threadMgrEx->GetActiveFlags(&activateFlags_);
+    }
+
+    installEventListeners();
+    initKeyboardState();
+    activateLanguageButtons();
 
     onActivate();
     return S_OK;
@@ -528,38 +570,8 @@ STDMETHODIMP TextService::Deactivate() {
 
     onDeactivate();
 
-    // uninitialize language bar
-    if(!langBarButtons_.empty()) {
-        if (auto langBarItemMgr = threadMgr_.query<ITfLangBarItemMgr>()) {
-            for(auto& button: langBarButtons_) {
-                langBarItemMgr->RemoveItem(button);
-            }
-        }
-    }
-    if(langBarMgr_) {
-        langBarMgr_->UnadviseEventSink(langBarSinkCookie_);
-        langBarSinkCookie_ = TF_INVALID_COOKIE;
-        langBarMgr_ = NULL;
-    }
-
-    // unadvice event sinks
-
-    // ITfThreadMgrEventSink, ITfActiveLanguageProfileNotifySink, and ITfTextEditSink
-    threadMgrEventSink_.unadvise();
-    activateLanguageProfileNotifySink_.unadvise();
-    textEditSink_.unadvise();
-
-    // ITfKeyEventSink
-    if(auto keystrokeMgr = threadMgr_.query<ITfKeystrokeMgr>()) {
-        keystrokeMgr->UnadviseKeyEventSink(clientId_);
-        // unregister preserved keys
-        for(const auto& preservedKey: preservedKeys_) {
-            keystrokeMgr->UnpreserveKey(preservedKey.guid, &preservedKey);
-        }
-    }
-
-    // ITfCompartmentEventSink
-    keyboardOPenCloseSink_.unadvise();
+    deactivateLanguageButtons();
+    uninstallEventListeners();
 
     threadMgr_ = nullptr;
     clientId_ = TF_CLIENTID_NULL;
@@ -868,7 +880,7 @@ HRESULT TextService::doEndCompositionEditSession(TfEditCookie cookie, ITfContext
     return S_OK;
 }
 
-ComPtr<ITfContext> TextService::currentContext() {
+ComPtr<ITfContext> TextService::currentContext() const {
     ComPtr<ITfContext> context;
     ComPtr<ITfDocumentMgr>  docMgr;
     if(threadMgr_->GetFocus(&docMgr) == S_OK) {
@@ -877,7 +889,7 @@ ComPtr<ITfContext> TextService::currentContext() {
     return context;
 }
 
-bool TextService::compositionRect(EditSession* session, RECT* rect) {
+bool TextService::compositionRect(EditSession* session, RECT* rect) const {
     bool ret = false;
     if(isComposing()) {
         ComPtr<ITfContextView> view;
@@ -893,7 +905,7 @@ bool TextService::compositionRect(EditSession* session, RECT* rect) {
     return ret;
 }
 
-bool TextService::selectionRect(EditSession* session, RECT* rect) {
+bool TextService::selectionRect(EditSession* session, RECT* rect) const {
     bool ret = false;
     if(isComposing()) {
         ComPtr<ITfContextView> view;
@@ -911,7 +923,7 @@ bool TextService::selectionRect(EditSession* session, RECT* rect) {
     return ret;
 }
 
-HWND TextService::compositionWindow(EditSession* session) {
+HWND TextService::compositionWindow(EditSession* session) const {
     HWND hwnd = NULL;
     ComPtr<ITfContextView> view;
     if(session->context()->GetActiveView(&view) == S_OK) {

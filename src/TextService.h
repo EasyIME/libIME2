@@ -82,10 +82,10 @@ public:
         return clientId_;
     }
 
-    ComPtr<ITfContext> currentContext();
+    ComPtr<ITfContext> currentContext() const;
 
     bool isActivated() const {
-        return (threadMgr() != NULL);
+        return (threadMgr() != nullptr);
     }
 
     DWORD activateFlags() const {
@@ -123,42 +123,42 @@ public:
     void removePreservedKey(const GUID& guid);
 
     // text composition handling
-    bool isComposing();
+    bool isComposing() const;
 
-    // is keyboard disabled for the context (NULL means current context)
-    bool isKeyboardDisabled(ITfContext* context = NULL);
+    // is keyboard disabled for the context (nullptr means current context)
+    bool isKeyboardDisabled(ITfContext* context = nullptr) const;
     
     // is keyboard opened for the whole thread
-    bool isKeyboardOpened();
+    bool isKeyboardOpened() const;
     void setKeyboardOpen(bool open);
 
-    bool isInsertionAllowed(EditSession* session);
+    bool isInsertionAllowed(EditSession* session) const;
     void startComposition(ITfContext* context);
     void endComposition(ITfContext* context);
-    bool compositionRect(EditSession* session, RECT* rect);
-    bool selectionRect(EditSession* session, RECT* rect);
-    HWND compositionWindow(EditSession* session);
+    bool compositionRect(EditSession* session, RECT* rect) const;
+    bool selectionRect(EditSession* session, RECT* rect) const;
+    HWND compositionWindow(EditSession* session) const;
 
-    std::wstring compositionString(EditSession* session);
-    void setCompositionString(EditSession* session, const wchar_t* str, int len);
-    void setCompositionCursor(EditSession* session, int pos);
+    std::wstring compositionString(EditSession* session) const;
+    void setCompositionString(EditSession* session, const wchar_t* str, int len) const;
+    void setCompositionCursor(EditSession* session, int pos) const;
 
     // compartment handling
-    ComPtr<ITfCompartment> globalCompartment(const GUID& key);
-    ComPtr<ITfCompartment> threadCompartment(const GUID& key);
-    ComPtr<ITfCompartment> contextCompartment(const GUID& key, ITfContext* context = NULL);
+    ComPtr<ITfCompartment> globalCompartment(const GUID& key) const;
+    ComPtr<ITfCompartment> threadCompartment(const GUID& key) const;
+    ComPtr<ITfCompartment> contextCompartment(const GUID& key, ITfContext* context = nullptr) const;
 
-    DWORD globalCompartmentValue(const GUID& key);
-    void setGlobalCompartmentValue(const GUID& key, DWORD value);
+    DWORD globalCompartmentValue(const GUID& key) const;
+    void setGlobalCompartmentValue(const GUID& key, DWORD value) const;
 
-    DWORD threadCompartmentValue(const GUID& key);
-    void setThreadCompartmentValue(const GUID& key, DWORD value);
+    DWORD threadCompartmentValue(const GUID& key) const;
+    void setThreadCompartmentValue(const GUID& key, DWORD value) const;
 
-    DWORD contextCompartmentValue(const GUID& key, ITfContext* context = NULL);
-    void setContextCompartmentValue(const GUID& key, DWORD value, ITfContext* context = nullptr);
+    DWORD contextCompartmentValue(const GUID& key, ITfContext* context = nullptr) const;
+    void setContextCompartmentValue(const GUID& key, DWORD value, ITfContext* context = nullptr) const;
 
-    DWORD compartmentValue(ITfCompartment* compartment);
-    void setCompartmentValue(ITfCompartment* compartment, DWORD value);
+    DWORD compartmentValue(ITfCompartment* compartment) const;
+    void setCompartmentValue(ITfCompartment* compartment, DWORD value) const;
 
     // virtual functions that IME implementors may need to override
     virtual void onActivate();
@@ -203,50 +203,50 @@ public:
     friend class DisplayAttributeInfoEnum;
 
     // ITfTextInputProcessor
-    STDMETHODIMP Activate(ITfThreadMgr *pThreadMgr, TfClientId tfClientId);
-    STDMETHODIMP Deactivate();
+    STDMETHODIMP Activate(ITfThreadMgr *pThreadMgr, TfClientId tfClientId) override;
+    STDMETHODIMP Deactivate() override;
 
     // ITfTextInputProcessorEx
-    STDMETHODIMP ActivateEx(ITfThreadMgr *ptim, TfClientId tid, DWORD dwFlags);
+    STDMETHODIMP ActivateEx(ITfThreadMgr *ptim, TfClientId tid, DWORD dwFlags) override;
 
     // ITfDisplayAttributeProvider
     STDMETHODIMP EnumDisplayAttributeInfo(IEnumTfDisplayAttributeInfo** ppEnum) override;
     STDMETHODIMP GetDisplayAttributeInfo(REFGUID guid, ITfDisplayAttributeInfo** ppInfo) override;
 
     // ITfThreadMgrEventSink
-    STDMETHODIMP OnInitDocumentMgr(ITfDocumentMgr *pDocMgr);
-    STDMETHODIMP OnUninitDocumentMgr(ITfDocumentMgr *pDocMgr);
-    STDMETHODIMP OnSetFocus(ITfDocumentMgr *pDocMgrFocus, ITfDocumentMgr *pDocMgrPrevFocus);
-    STDMETHODIMP OnPushContext(ITfContext *pContext);
-    STDMETHODIMP OnPopContext(ITfContext *pContext);
+    STDMETHODIMP OnInitDocumentMgr(ITfDocumentMgr *pDocMgr) override;
+    STDMETHODIMP OnUninitDocumentMgr(ITfDocumentMgr *pDocMgr) override;
+    STDMETHODIMP OnSetFocus(ITfDocumentMgr *pDocMgrFocus, ITfDocumentMgr *pDocMgrPrevFocus) override;
+    STDMETHODIMP OnPushContext(ITfContext *pContext) override;
+    STDMETHODIMP OnPopContext(ITfContext *pContext) override;
 
     // ITfTextEditSink
-    STDMETHODIMP OnEndEdit(ITfContext *pContext, TfEditCookie ecReadOnly, ITfEditRecord *pEditRecord);
+    STDMETHODIMP OnEndEdit(ITfContext *pContext, TfEditCookie ecReadOnly, ITfEditRecord *pEditRecord) override;
 
     // ITfKeyEventSink
-    STDMETHODIMP OnSetFocus(BOOL fForeground);
-    STDMETHODIMP OnTestKeyDown(ITfContext *pContext, WPARAM wParam, LPARAM lParam, BOOL *pfEaten);
-    STDMETHODIMP OnKeyDown(ITfContext *pContext, WPARAM wParam, LPARAM lParam, BOOL *pfEaten);
-    STDMETHODIMP OnTestKeyUp(ITfContext *pContext, WPARAM wParam, LPARAM lParam, BOOL *pfEaten);
-    STDMETHODIMP OnKeyUp(ITfContext *pContext, WPARAM wParam, LPARAM lParam, BOOL *pfEaten);
-    STDMETHODIMP OnPreservedKey(ITfContext *pContext, REFGUID rguid, BOOL *pfEaten);
+    STDMETHODIMP OnSetFocus(BOOL fForeground) override;
+    STDMETHODIMP OnTestKeyDown(ITfContext *pContext, WPARAM wParam, LPARAM lParam, BOOL *pfEaten) override;
+    STDMETHODIMP OnKeyDown(ITfContext *pContext, WPARAM wParam, LPARAM lParam, BOOL *pfEaten) override;
+    STDMETHODIMP OnTestKeyUp(ITfContext *pContext, WPARAM wParam, LPARAM lParam, BOOL *pfEaten) override;
+    STDMETHODIMP OnKeyUp(ITfContext *pContext, WPARAM wParam, LPARAM lParam, BOOL *pfEaten) override;
+    STDMETHODIMP OnPreservedKey(ITfContext *pContext, REFGUID rguid, BOOL *pfEaten) override;
 
     // ITfCompositionSink
-    STDMETHODIMP OnCompositionTerminated(TfEditCookie ecWrite, ITfComposition *pComposition);
+    STDMETHODIMP OnCompositionTerminated(TfEditCookie ecWrite, ITfComposition *pComposition) override;
 
     // ITfCompartmentEventSink
-    STDMETHODIMP OnChange(REFGUID rguid);
+    STDMETHODIMP OnChange(REFGUID rguid) override;
 
     // ITfLangBarEventSink 
-    STDMETHODIMP OnSetFocus(DWORD dwThreadId);
-    STDMETHODIMP OnThreadTerminate(DWORD dwThreadId);
-    STDMETHODIMP OnThreadItemChange(DWORD dwThreadId);
-    STDMETHODIMP OnModalInput(DWORD dwThreadId, UINT uMsg, WPARAM wParam, LPARAM lParam);
-    STDMETHODIMP ShowFloating(DWORD dwFlags);
-    STDMETHODIMP GetItemFloatingRect(DWORD dwThreadId, REFGUID rguid, RECT *prc);
+    STDMETHODIMP OnSetFocus(DWORD dwThreadId) override;
+    STDMETHODIMP OnThreadTerminate(DWORD dwThreadId) override;
+    STDMETHODIMP OnThreadItemChange(DWORD dwThreadId) override;
+    STDMETHODIMP OnModalInput(DWORD dwThreadId, UINT uMsg, WPARAM wParam, LPARAM lParam) override;
+    STDMETHODIMP ShowFloating(DWORD dwFlags) override;
+    STDMETHODIMP GetItemFloatingRect(DWORD dwThreadId, REFGUID rguid, RECT *prc) override;
 
     // ITfActiveLanguageProfileNotifySink
-    STDMETHODIMP OnActivated(REFCLSID clsid, REFGUID guidProfile, BOOL fActivated);
+    STDMETHODIMP OnActivated(REFCLSID clsid, REFGUID guidProfile, BOOL fActivated) override;
 
 protected:
 
@@ -257,6 +257,13 @@ protected:
         GUID guid;
     };
 
+    void initKeyboardState();
+
+    void installEventListeners();
+    void uninstallEventListeners();
+
+    void activateLanguageButtons();
+    void deactivateLanguageButtons();
 
 protected: // COM object should not be deleted directly. calling Release() instead.
     virtual ~TextService(void);
