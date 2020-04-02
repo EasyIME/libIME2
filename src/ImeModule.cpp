@@ -182,7 +182,7 @@ HRESULT ImeModule::registerLangProfiles(LangProfileInfo* langs, int langsCount) 
     // The keys under HKCU\Control Panel\ is shared between the x86 and x64 versions and 
     // are not affected by WOW64 redirection. So doing this inside the 32-bit version is enough.
 
-    if (isWindows8Above()) {
+    if (::IsWindows8OrGreater()) {
         DWORD sidCount = 0;
         if (::RegQueryInfoKeyW(HKEY_USERS, NULL, NULL, NULL, &sidCount, NULL, NULL, NULL, NULL, NULL, NULL, NULL) != ERROR_SUCCESS)
             return E_FAIL;
@@ -373,7 +373,7 @@ HRESULT ImeModule::unregisterServer() {
     // are not affected by WOW64 redirection. So doing this inside the 32-bit version is enough.
 
     // delete settings under "HKEY_CURRENT_USER\Control Panel\International\User Profile\<locale_name>" for all users
-    if (isWindows8Above()) {
+    if (::IsWindows8OrGreater()) {
         DWORD sidCount = 0;
         if (::RegQueryInfoKeyW(HKEY_USERS, NULL, NULL, NULL, &sidCount, NULL, NULL, NULL, NULL, NULL, NULL, NULL) != ERROR_SUCCESS)
             return E_FAIL;
