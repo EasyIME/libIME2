@@ -39,10 +39,6 @@ TextService::TextService(ImeModule* module):
     clientId_(TF_CLIENTID_NULL),
     activateFlags_(0),
     isKeyboardOpened_(false),
-    textEditSinkCookie_(TF_INVALID_COOKIE),
-    compositionSinkCookie_(TF_INVALID_COOKIE),
-    keyboardOpenEventSinkCookie_(TF_INVALID_COOKIE),
-    globalCompartmentEventSinkCookie_(TF_INVALID_COOKIE),
     langBarSinkCookie_(TF_INVALID_COOKIE) {
 
 }
@@ -473,13 +469,12 @@ STDMETHODIMP TextService::Activate(ITfThreadMgr *pThreadMgr, TfClientId tfClient
 
     // advice event sinks (set up event listeners)
 
-    // ITfThreadMgrEventSink, ITfActiveLanguageProfileNotifySink
-    if(auto source = threadMgr_.query<ITfSource>()) {
-        threadMgrEventSinkCookie_ = SinkAdvice(source, IID_ITfThreadMgrEventSink, (ITfThreadMgrEventSink *)this);
-        activateLanguageProfileNotifySinkCookie_ = SinkAdvice(source, IID_ITfActiveLanguageProfileNotifySink, (ITfActiveLanguageProfileNotifySink *)this);
+    // ITfThreadMgrEventSink, ITfActiveLanguageProfileNotifySink, and ITfTextEditSink
+    if (auto source = threadMgr_.query<ITfSource>()) {
+        threadMgrEventSink_ = SinkAdvice{ source, IID_ITfThreadMgrEventSink, static_cast<ITfThreadMgrEventSink*>(this) };
+        activateLanguageProfileNotifySink_ = SinkAdvice{ source, IID_ITfActiveLanguageProfileNotifySink, static_cast<ITfActiveLanguageProfileNotifySink*>(this) };
+        textEditSink_ = SinkAdvice{ source, IID_ITfTextEditSink, static_cast<ITfTextEditSink*>(this) };
     }
-
-    // ITfTextEditSink,
 
     // ITfKeyEventSink
     if (auto keystrokeMgr = threadMgr_.query<ITfKeystrokeMgr>()) {
@@ -490,10 +485,6 @@ STDMETHODIMP TextService::Activate(ITfThreadMgr *pThreadMgr, TfClientId tfClient
             keystrokeMgr->PreserveKey(clientId_, preservedKey.guid, &preservedKey, NULL, 0);
         }
     }
-
-    // ITfCompositionSink
-
-    // ITfCompartmentEventSink
 
     // get current keyboard state
     isKeyboardOpened_ = threadCompartmentValue(GUID_COMPARTMENT_KEYBOARD_OPENCLOSE) != 0;
@@ -553,11 +544,10 @@ STDMETHODIMP TextService::Deactivate() {
 
     // unadvice event sinks
 
-    // ITfThreadMgrEventSink
-    threadMgrEventSinkCookie_.unadvise();
-    activateLanguageProfileNotifySinkCookie_.unadvise();
-
-    // ITfTextEditSink,
+    // ITfThreadMgrEventSink, ITfActiveLanguageProfileNotifySink, and ITfTextEditSink
+    threadMgrEventSink_.unadvise();
+    activateLanguageProfileNotifySink_.unadvise();
+    textEditSink_.unadvise();
 
     // ITfKeyEventSink
     if(auto keystrokeMgr = threadMgr_.query<ITfKeystrokeMgr>()) {
@@ -567,8 +557,6 @@ STDMETHODIMP TextService::Deactivate() {
             keystrokeMgr->UnpreserveKey(preservedKey.guid, &preservedKey);
         }
     }
-
-    // ITfCompositionSink
 
     // ITfCompartmentEventSink
     keyboardOPenCloseSink_.unadvise();

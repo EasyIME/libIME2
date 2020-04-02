@@ -270,13 +270,10 @@ private:
     bool isKeyboardOpened_;
 
     // event sink cookies
-    SinkAdvice threadMgrEventSinkCookie_;
-    SinkAdvice activateLanguageProfileNotifySinkCookie_;
+    SinkAdvice threadMgrEventSink_;
+    SinkAdvice activateLanguageProfileNotifySink_;
     SinkAdvice keyboardOPenCloseSink_;
-    DWORD textEditSinkCookie_;
-    DWORD compositionSinkCookie_;
-    DWORD keyboardOpenEventSinkCookie_;
-    DWORD globalCompartmentEventSinkCookie_;
+    SinkAdvice textEditSink_;
     DWORD langBarSinkCookie_;
 
     ComPtr<ITfComposition> composition_; // acquired when starting composition, released when ending composition
