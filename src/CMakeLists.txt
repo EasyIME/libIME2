@@ -24,6 +24,7 @@ add_library(libIME2_static STATIC
     DisplayAttributeProvider.h
     LangBarButton.cpp
     LangBarButton.h
+    SinkAdvice.h
     Utils.cpp
     Utils.h
     ComPtr.h
