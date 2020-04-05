@@ -58,6 +58,8 @@ static const GUID g_inputDisplayAttributeGuid =
 // static const GUID g_convertedDisplayAttributeGuid = 
 // { 0xe1270aa5, 0xa6b1, 0x4112, { 0x9a, 0xc7, 0xf5, 0xe4, 0x76, 0xc3, 0xbd, 0x63 } };
 
+// refCountMutex needs to be static because it may be accessed after Release() calls the destructor.
+std::mutex ImeModule::refCountMutex_;
 
 ImeModule::ImeModule(HMODULE module, const CLSID& textServiceClsid):
     hInstance_(HINSTANCE(module)),

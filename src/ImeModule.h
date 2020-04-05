@@ -114,7 +114,8 @@ protected: // COM object should not be deleted directly. calling Release() inste
     virtual ~ImeModule(void);
 
 private:
-    std::mutex refCountMutex_;
+    // refCountMutex needs to be static because it may be accessed after Release() calls the destructor.
+    static std::mutex refCountMutex_;
     HINSTANCE hInstance_;
     CLSID textServiceClsid_;
 
