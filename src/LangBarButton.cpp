@@ -113,10 +113,8 @@ HICON LangBarButton::icon() const {
 // That means, when the button is destroyed, it will not destroy
 // the icon automatically.
 void LangBarButton::setIcon(HICON icon) {
-    if (icon != icon_) {
-        icon_ = icon;
-        update(TF_LBI_ICON);
-    }
+    icon_ = icon;
+    update(TF_LBI_ICON);
 }
 
 void LangBarButton::setIcon(UINT iconId) {
