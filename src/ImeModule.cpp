@@ -93,8 +93,12 @@ static void loadDefaultUserRegistry(const wchar_t* defaultUserRegKey) {
     if (SUCCEEDED(::SHGetKnownFolderPath(FOLDERID_UserProfiles, 0, NULL, &userProfilesDir))) {
         // get the path of the default ntuser.dat file
         std::wstring defaultRegFile = userProfilesDir;
-        ::CoTaskMemFree(userProfilesDir);
         defaultRegFile += L"\\Default User\\ntuser.dat";
+        if (GetFileAttributesW(defaultRegFile.c_str()) == INVALID_FILE_ATTRIBUTES) {
+            defaultRegFile = userProfilesDir;
+            defaultRegFile += L"\\Default\\ntuser.dat";
+        }
+        ::CoTaskMemFree(userProfilesDir);
 
         // loading registry file requires special privileges SE_RESTORE_NAME and SE_BACKUP_NAME.
         // So let's do privilege elevation for our process.
@@ -166,8 +170,10 @@ HRESULT ImeModule::registerLangProfiles(LangProfileInfo* langs, int langsCount) 
 
     if (::IsWindows8OrGreater()) {
         DWORD sidCount = 0;
-        if (::RegQueryInfoKeyW(HKEY_USERS, NULL, NULL, NULL, &sidCount, NULL, NULL, NULL, NULL, NULL, NULL, NULL) != ERROR_SUCCESS)
-            return E_FAIL;
+        if (::RegQueryInfoKeyW(HKEY_USERS, NULL, NULL, NULL, &sidCount, NULL, NULL, NULL, NULL, NULL, NULL, NULL) != ERROR_SUCCESS) {
+            // Do not abort on failure; we still want the rest of the registration to succeed.
+            sidCount = 0;
+        }
         wchar_t* textServiceClsIdStr = nullptr;
         if (FAILED(::StringFromCLSID(textServiceClsid_, &textServiceClsIdStr)))
             return E_FAIL;
@@ -357,8 +363,10 @@ HRESULT ImeModule::unregisterServer() {
     // delete settings under "HKEY_CURRENT_USER\Control Panel\International\User Profile\<locale_name>" for all users
     if (::IsWindows8OrGreater()) {
         DWORD sidCount = 0;
-        if (::RegQueryInfoKeyW(HKEY_USERS, NULL, NULL, NULL, &sidCount, NULL, NULL, NULL, NULL, NULL, NULL, NULL) != ERROR_SUCCESS)
-            return E_FAIL;
+        if (::RegQueryInfoKeyW(HKEY_USERS, NULL, NULL, NULL, &sidCount, NULL, NULL, NULL, NULL, NULL, NULL, NULL) != ERROR_SUCCESS) {
+            // Do not abort on failure; we still want the rest of the unregistration to succeed.
+            sidCount = 0;
+        }
         wchar_t* textServiceClsIdStr = nullptr;
         if (FAILED(::StringFromCLSID(textServiceClsid_, &textServiceClsIdStr)))
             return E_FAIL;
