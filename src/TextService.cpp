@@ -576,6 +576,7 @@ void TextService::deactivateLanguageButtons() {
                 langBarItemMgr->RemoveItem(button);
             }
         }
+        langBarButtons_.clear();
     }
     if (langBarMgr_) {
         langBarMgr_->UnadviseEventSink(langBarSinkCookie_);
@@ -760,7 +761,7 @@ STDMETHODIMP TextService::OnTestKeyUp(ITfContext *pContext, WPARAM wParam, LPARA
         *pfEaten = FALSE;
     }
     else {
-        KeyEvent keyEvent(WM_KEYDOWN, wParam, lParam);
+        KeyEvent keyEvent(WM_KEYUP, wParam, lParam);
         *pfEaten = (BOOL)filterKeyUp(keyEvent);
     }
     return S_OK;
