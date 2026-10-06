@@ -327,7 +327,7 @@ ComPtr<ITfCompartment> TextService::globalCompartment(const GUID& key) const {
     }
     if(threadMgr) {
         ComPtr<ITfCompartmentMgr> compartmentMgr;
-        if(threadMgr_->GetGlobalCompartment(&compartmentMgr) == S_OK) {
+        if(threadMgr->GetGlobalCompartment(&compartmentMgr) == S_OK) {
             compartmentMgr->GetCompartment(key, &compartment);
         }
     }

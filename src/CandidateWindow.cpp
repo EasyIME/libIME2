@@ -105,7 +105,10 @@ STDMETHODIMP CandidateWindow::GetUpdatedFlags(DWORD *pdwFlags) {
 STDMETHODIMP CandidateWindow::GetDocumentMgr(ITfDocumentMgr **ppdim) {
     if (!textService_)
         return E_FAIL;
-    return textService_->currentContext()->GetDocumentMgr(ppdim);
+    ITfContext* context = textService_->currentContext();
+    if (!context)
+        return E_FAIL;
+    return context->GetDocumentMgr(ppdim);
 }
 
 STDMETHODIMP CandidateWindow::GetCount(UINT *puCount) {
