@@ -18,13 +18,21 @@
 //
 
 #include "Window.h"
+#include <mutex>
 
 namespace Ime {
 
 static TCHAR g_imeWindowClassName[] = _T("LibImeWindow");
 static HINSTANCE g_hinstance = NULL;
 
+static std::mutex g_hwndMapMutex;
 std::map<HWND, Window*> Window::hwndMap_;
+
+Window* Window::fromHwnd(HWND hwnd) {
+    std::lock_guard<std::mutex> lock(g_hwndMapMutex);
+    std::map<HWND, Window*>::iterator it = hwndMap_.find(hwnd);
+    return it != hwndMap_.end() ? it->second : NULL;
+}
 
 Window::Window():
     hwnd_(NULL) {
@@ -40,6 +48,7 @@ bool Window::create(HWND parent, DWORD style, DWORD exStyle) {
                     0, 0, 0, 0, parent, NULL, g_hinstance, NULL);
     if(hwnd_) {
         // associate this object with the hwnd
+        std::lock_guard<std::mutex> lock(g_hwndMapMutex);
         hwndMap_[hwnd_] = this;
         return true;
     }
@@ -55,14 +64,16 @@ void Window::destroy(void) {
 // static
 LRESULT Window::_wndProc(HWND hwnd , UINT msg, WPARAM wp , LPARAM lp) {
     // get object pointer from the hwnd
-    Window* window = (Window*)hwndMap_[hwnd];
+    Window* window = Window::fromHwnd(hwnd);
     // FIXME: we cannot handle WM_CREATE in Window::wndProc member function
     // because the message is sent before CreateWindow returns, and
     // we do SetWindowLongPtr() only after CreateWindow().
     if(window) {
         LRESULT result = window->wndProc(msg, wp, lp);
-        if(msg == WM_NCDESTROY)
+        if(msg == WM_NCDESTROY) {
+            std::lock_guard<std::mutex> lock(g_hwndMapMutex);
             hwndMap_.erase(hwnd);
+        }
         return result;
     }
     return ::DefWindowProc(hwnd, msg, wp, lp);
