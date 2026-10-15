@@ -79,10 +79,7 @@ public:
 
     static bool registerClass(HINSTANCE hinstance);
 
-    static Window* fromHwnd(HWND hwnd) {
-        std::map<HWND, Window*>::iterator it = hwndMap_.find(hwnd);
-        return it != hwndMap_.end() ? it->second : NULL;
-    }
+    static Window* fromHwnd(HWND hwnd);
 
 protected:
     static LRESULT _wndProc(HWND hwnd , UINT msg, WPARAM wp , LPARAM lp);

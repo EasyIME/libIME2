@@ -105,7 +105,10 @@ STDMETHODIMP CandidateWindow::GetUpdatedFlags(DWORD *pdwFlags) {
 STDMETHODIMP CandidateWindow::GetDocumentMgr(ITfDocumentMgr **ppdim) {
     if (!textService_)
         return E_FAIL;
-    return textService_->currentContext()->GetDocumentMgr(ppdim);
+    ITfContext* context = textService_->currentContext();
+    if (!context)
+        return E_FAIL;
+    return context->GetDocumentMgr(ppdim);
 }
 
 STDMETHODIMP CandidateWindow::GetCount(UINT *puCount) {
@@ -272,18 +275,28 @@ void CandidateWindow::recalculateSize() {
     ::SelectObject(hDC, oldFont);
     ::ReleaseDC(hwnd(), hDC);
 
-    if(items_.size() <= candPerRow_) {
+    if(items_.empty()) {
+        resize(0, 0);
+        return;
+    }
+    int safeCandPerRow = candPerRow_ > 0 ? candPerRow_ : 1;
+
+    if(items_.size() <= (size_t)safeCandPerRow) {
         width = items_.size() * (selKeyWidth_ + textWidth_);
-        width += colSpacing_ * (items_.size() - 1);
+        if (items_.size() > 1) {
+            width += colSpacing_ * (items_.size() - 1);
+        }
         width += margin_ * 2;
         height = itemHeight_ + margin_ * 2;
     }
     else {
-        width = candPerRow_ * (selKeyWidth_ + textWidth_);
-        width += colSpacing_ * (candPerRow_ - 1);
+        width = safeCandPerRow * (selKeyWidth_ + textWidth_);
+        if (safeCandPerRow > 1) {
+            width += colSpacing_ * (safeCandPerRow - 1);
+        }
         width += margin_ * 2;
-        int rowCount = items_.size() / candPerRow_;
-        if(items_.size() % candPerRow_)
+        int rowCount = items_.size() / safeCandPerRow;
+        if(items_.size() % safeCandPerRow)
             ++rowCount;
         height = itemHeight_ * rowCount + rowSpacing_ * (rowCount - 1) + margin_ * 2;
     }
