@@ -141,6 +141,11 @@ HRESULT ImeModule::registerLangProfiles(LangProfileInfo* langs, int langsCount) 
                         lang.iconFile.length(), lang.iconIndex) != S_OK) {
                         return E_FAIL;
                     }
+                    // Enable the profile by default, and also for the current user. Reinstalling
+                    // does not clear a per-user "Enable = 0" left by an earlier removal, which hides
+                    // the input method from the Win+Space switcher while Settings still lists it.
+                    inputProcessProfiles->EnableLanguageProfileByDefault(textServiceClsid_, langId, lang.profileGuid, TRUE);
+                    inputProcessProfiles->EnableLanguageProfile(textServiceClsid_, langId, lang.profileGuid, TRUE);
                 }
                 else {
                     return E_FAIL;
