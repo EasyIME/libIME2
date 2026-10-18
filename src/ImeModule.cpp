@@ -213,12 +213,33 @@ HRESULT ImeModule::registerLangProfiles(LangProfileInfo* langs, int langsCount) 
                         if (SUCCEEDED(::StringFromCLSID(lang.profileGuid, &profileClsIdStr))) {
                             valueName += profileClsIdStr;
                             ::CoTaskMemFree(profileClsIdStr);
-                            DWORD profileCount = 1;
-                            if (::RegQueryInfoKeyW(localeRegKey, NULL, NULL, NULL, NULL, NULL, NULL, &profileCount, NULL, NULL, NULL, NULL) == ERROR_SUCCESS) {
-                                // ::MessageBoxW(0, std::to_wstring(profileCount).c_str(), 0, 0);
-                                ++profileCount;
+                            // Do not overwrite or re-number if this profile is already registered.
+                            DWORD existingIndex = 0;
+                            DWORD existingSize = sizeof(existingIndex);
+                            DWORD valType = 0;
+                            if (::RegQueryValueExW(localeRegKey, valueName.c_str(), NULL, &valType, (LPBYTE)&existingIndex, &existingSize) != ERROR_SUCCESS || valType != REG_DWORD || existingIndex == 0) {
+                                // Find the maximum 1-based index currently assigned to input profiles (<langID>:...).
+                                // Note: RegQueryInfoKeyW cannot be used here because it counts non-IME values such as
+                                // 'CachedLanguageName', causing index gaps and out-of-bounds indices in InputSwitch.dll.
+                                DWORD maxIndex = 0;
+                                DWORD enumIndex = 0;
+                                wchar_t enumValName[256];
+                                DWORD enumValNameLen = sizeof(enumValName) / sizeof(wchar_t);
+                                DWORD enumValType = 0;
+                                DWORD enumValData = 0;
+                                DWORD enumValDataSize = sizeof(enumValData);
+                                while (::RegEnumValueW(localeRegKey, enumIndex++, enumValName, &enumValNameLen, NULL, &enumValType, (LPBYTE)&enumValData, &enumValDataSize) == ERROR_SUCCESS) {
+                                    if (enumValType == REG_DWORD && enumValDataSize == sizeof(DWORD) && wcschr(enumValName, L':') != nullptr) {
+                                        if (enumValData > maxIndex) {
+                                            maxIndex = enumValData;
+                                        }
+                                    }
+                                    enumValNameLen = sizeof(enumValName) / sizeof(wchar_t);
+                                    enumValDataSize = sizeof(enumValData);
+                                }
+                                DWORD newProfileIndex = maxIndex + 1;
+                                ::RegSetKeyValueW(localeRegKey, NULL, valueName.c_str(), REG_DWORD, &newProfileIndex, sizeof(DWORD));
                             }
-                            ::RegSetKeyValueW(localeRegKey, NULL, valueName.c_str(), REG_DWORD, &profileCount, sizeof(DWORD));
                         }
                         ::RegCloseKey(localeRegKey);
                     }
