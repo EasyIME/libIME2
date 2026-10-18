@@ -234,7 +234,21 @@ HRESULT ImeModule::registerLangProfiles(LangProfileInfo* langs, int langsCount) 
     return S_OK;
 }
 
-HRESULT ImeModule::registerServer(wchar_t* imeName, LangProfileInfo* langs, int count) {
+HRESULT ImeModule::registerServer(const wchar_t* imeName, LangProfileInfo* langs, int count) {
+    wchar_t modulePath[MAX_PATH];
+    DWORD len = GetModuleFileNameW(hInstance_, modulePath, MAX_PATH);
+    if (len == 0 || len >= MAX_PATH) {
+        return E_FAIL;
+    }
+    modulePath[len] = L'\0';
+    return registerServer(imeName, langs, count, modulePath);
+}
+
+HRESULT ImeModule::registerServer(const wchar_t* imeName, LangProfileInfo* langs, int count, const wchar_t* dllPath) {
+    if (!dllPath || !*dllPath) {
+        return E_FAIL;
+    }
+
     // write info of our COM text service component to the registry
     // path: HKEY_CLASS_ROOT\\CLSID\\{xxxx-xxxx-xxxx-xx....}
     // This reguires Administrator permimssion to write to the registery
@@ -246,10 +260,6 @@ HRESULT ImeModule::registerServer(wchar_t* imeName, LangProfileInfo* langs, int 
 
     HRESULT result = S_OK;
 
-    // get path of our module
-    wchar_t modulePath[MAX_PATH];
-    DWORD modulePathLen = GetModuleFileNameW(hInstance_, modulePath, MAX_PATH);
-
     wstring regPath = L"CLSID\\";
     LPOLESTR clsidStr = NULL;
     if(StringFromCLSID(textServiceClsid_, &clsidStr) != ERROR_SUCCESS)
@@ -260,12 +270,12 @@ HRESULT ImeModule::registerServer(wchar_t* imeName, LangProfileInfo* langs, int 
     HKEY hkey = NULL;
     if(::RegCreateKeyExW(HKEY_CLASSES_ROOT, regPath.c_str(), 0, NULL, REG_OPTION_NON_VOLATILE, KEY_WRITE, NULL, &hkey, NULL) == ERROR_SUCCESS) {
         // write name of our IME
-        ::RegSetValueExW(hkey, NULL, 0, REG_SZ, (BYTE*)imeName, sizeof(wchar_t) * (wcslen(imeName) + 1));
+        ::RegSetValueExW(hkey, NULL, 0, REG_SZ, (const BYTE*)imeName, sizeof(wchar_t) * (wcslen(imeName) + 1));
 
         HKEY inProcServer32Key;
         if(::RegCreateKeyExW(hkey, L"InprocServer32", 0, NULL, REG_OPTION_NON_VOLATILE, KEY_WRITE, NULL, &inProcServer32Key, NULL) == ERROR_SUCCESS) {
             // store the path of our dll module in the registry
-            ::RegSetValueExW(inProcServer32Key, NULL, 0, REG_SZ, (BYTE*)modulePath, (modulePathLen + 1) * sizeof(wchar_t));
+            ::RegSetValueExW(inProcServer32Key, NULL, 0, REG_SZ, (const BYTE*)dllPath, sizeof(wchar_t) * (wcslen(dllPath) + 1));
             // write threading model
             wchar_t apartmentStr[] = L"Apartment";
             ::RegSetValueExW(inProcServer32Key, L"ThreadingModel", 0, REG_SZ, (BYTE*)apartmentStr, 10 * sizeof(wchar_t));

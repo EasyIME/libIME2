@@ -67,7 +67,8 @@ public:
     HRESULT canUnloadNow();
     HRESULT getClassObject(REFCLSID rclsid, REFIID riid, void **ppvObj);
 
-    HRESULT registerServer(wchar_t* imeName, LangProfileInfo* langs, int count);
+    HRESULT registerServer(const wchar_t* imeName, LangProfileInfo* langs, int count);
+    HRESULT registerServer(const wchar_t* imeName, LangProfileInfo* langs, int count, const wchar_t* dllPath);
     HRESULT registerLangProfiles(LangProfileInfo* langs, int count);
     HRESULT unregisterServer();
 
