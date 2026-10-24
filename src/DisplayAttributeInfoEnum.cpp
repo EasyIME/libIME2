@@ -26,7 +26,7 @@ namespace Ime {
 
 DisplayAttributeInfoEnum::DisplayAttributeInfoEnum(ComPtr<DisplayAttributeProvider> provider):
     provider_(std::move(provider)) {
-    auto displayAttrInfos = provider_->imeModule_->displayAttrInfos();
+    auto& displayAttrInfos = provider_->imeModule_->displayAttrInfos();
     iterator_ = displayAttrInfos.begin();
 }
 
@@ -72,4 +72,3 @@ STDMETHODIMP DisplayAttributeInfoEnum::Skip(ULONG ulCount) {
 }
 
 } // namespace Ime
-
