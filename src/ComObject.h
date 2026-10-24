@@ -51,8 +51,8 @@ public:
 
     virtual ~ComObject() {}
 
-    int refCount() const {
-        return refCount_;
+    ULONG refCount() const {
+        return static_cast<ULONG>(refCount_);
     }
 
     STDMETHODIMP QueryInterface(REFIID riid, void** ppvObj) {
@@ -75,13 +75,13 @@ public:
     }
 
     STDMETHODIMP_(ULONG) AddRef() {
-        return ++refCount_;
+        return static_cast<ULONG>(::InterlockedIncrement(&refCount_));
     }
 
     STDMETHODIMP_(ULONG) Release() {
         assert(refCount_ > 0);
-        const ULONG newCount = --refCount_;
-        if (0 == refCount_) {
+        const ULONG newCount = static_cast<ULONG>(::InterlockedDecrement(&refCount_));
+        if (0 == newCount) {
             delete this;
         }
         return newCount;
@@ -100,7 +100,7 @@ private:
     }
 
 private:
-    int refCount_;
+    volatile LONG refCount_{ 1 };
 };
 
 } // namespace Ime

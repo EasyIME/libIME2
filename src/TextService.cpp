@@ -870,8 +870,11 @@ STDMETHODIMP TextService::OnActivated(REFCLSID clsid, REFGUID guidProfile, BOOL 
 
 ComPtr<ITfContext> TextService::currentContext() const {
     ComPtr<ITfContext> context;
-    ComPtr<ITfDocumentMgr>  docMgr;
-    if(threadMgr_->GetFocus(&docMgr) == S_OK) {
+    if (!threadMgr_) {
+        return context;
+    }
+    ComPtr<ITfDocumentMgr> docMgr;
+    if (threadMgr_->GetFocus(&docMgr) == S_OK && docMgr) {
         docMgr->GetTop(&context);
     }
     return context;
@@ -924,4 +927,3 @@ HWND TextService::compositionWindow(EditSession* session) const {
 }
 
 } // namespace Ime
-

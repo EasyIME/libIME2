@@ -253,14 +253,16 @@ void CandidateWindow::recalculateSize() {
     HGDIOBJ oldFont = ::SelectObject(hDC, font_);
     vector<wstring>::const_iterator it;
     for(int i = 0, n = items_.size(); i < n; ++i) {
-        SIZE selKeySize;
+        SIZE selKeySize = { 0 };
         int lineHeight = 0;
         // the selection key string
-        wchar_t selKey[] = L"?. ";
-        selKey[0] = selKeys_[i];
-        ::GetTextExtentPoint32W(hDC, selKey, 3, &selKeySize);
-        if(selKeySize.cx > selKeyWidth_)
-            selKeyWidth_ = selKeySize.cx;
+        if (!selKeys_.empty()) {
+            wchar_t selKey[] = L"?. ";
+            selKey[0] = (static_cast<size_t>(i) < selKeys_.size()) ? selKeys_[i] : L' ';
+            ::GetTextExtentPoint32W(hDC, selKey, 3, &selKeySize);
+            if(selKeySize.cx > selKeyWidth_)
+                selKeyWidth_ = selKeySize.cx;
+        }
 
         // the candidate string
         SIZE candidateSize;
@@ -374,19 +376,21 @@ void CandidateWindow::setUseCursor(bool use) {
 
 void CandidateWindow::paintItem(HDC hDC, int i,  int x, int y) {
     RECT textRect = {x, y, 0, y + itemHeight_};
-    wchar_t selKey[] = L"?. ";
-    selKey[0] = selKeys_[i];
-    textRect.right = textRect.left + selKeyWidth_;
-    // FIXME: make the color of strings configurable.
-    COLORREF selKeyColor = RGB(0, 0, 255);
-    COLORREF oldColor = ::SetTextColor(hDC, selKeyColor);
-    // paint the selection key
-    ::ExtTextOut(hDC, textRect.left, textRect.top, ETO_OPAQUE, &textRect, selKey, 3, NULL);
-    ::SetTextColor(hDC, oldColor); // restore text color
+    if (!selKeys_.empty() && selKeyWidth_ > 0) {
+        wchar_t selKey[] = L"?. ";
+        selKey[0] = (static_cast<size_t>(i) < selKeys_.size()) ? selKeys_[i] : L' ';
+        textRect.right = textRect.left + selKeyWidth_;
+        // FIXME: make the color of strings configurable.
+        COLORREF selKeyColor = RGB(0, 0, 255);
+        COLORREF oldColor = ::SetTextColor(hDC, selKeyColor);
+        // paint the selection key
+        ::ExtTextOut(hDC, textRect.left, textRect.top, ETO_OPAQUE, &textRect, selKey, 3, NULL);
+        ::SetTextColor(hDC, oldColor); // restore text color
+        textRect.left += selKeyWidth_;
+    }
 
     // paint the candidate string
     wstring& item = items_.at(i);
-    textRect.left += selKeyWidth_;
     textRect.right = textRect.left + textWidth_;
     // paint the candidate string
     ::ExtTextOut(hDC, textRect.left, textRect.top, ETO_OPAQUE, &textRect, item.c_str(), item.length(), NULL);
@@ -401,9 +405,9 @@ void CandidateWindow::paintItem(HDC hDC, int i,  int x, int y) {
 }
 
 void CandidateWindow::itemRect(int i, RECT& rect) {
-    int row, col;
-    row = i / candPerRow_;
-    col = i % candPerRow_;
+    const int candPerRow = std::max(1, candPerRow_);
+    int row = i / candPerRow;
+    int col = i % candPerRow;
     rect.left = margin_ + col * (selKeyWidth_ + textWidth_ + colSpacing_);
     rect.top = margin_ + row * (itemHeight_ + rowSpacing_);
     rect.right = rect.left + (selKeyWidth_ + textWidth_);
