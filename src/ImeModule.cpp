@@ -82,7 +82,6 @@ HRESULT ImeModule::getClassObject(REFCLSID rclsid, REFIID riid, void **ppvObj) {
     return CLASS_E_CLASSNOTAVAILABLE;
 }
 
-#ifndef _WIN64  // only do this for the 32-bit version dll
 static void loadDefaultUserRegistry(const wchar_t* defaultUserRegKey) {
     // The registry settings of all newly created users are based on the content of 
     // "C:\Users\Default User\ntuser.dat", so we need to write our settings to this file so 
@@ -119,7 +118,283 @@ static void loadDefaultUserRegistry(const wchar_t* defaultUserRegKey) {
         ::RegLoadKeyW(HKEY_USERS, defaultUserRegKey, defaultRegFile.c_str());
     }
 }
-#endif  // #ifndef _WIN64
+
+// ============================================================================
+// Windows 8+ User Profile Language Settings Helpers
+//
+// Background & Rationale:
+// Starting with Windows 8 (and continued in Windows 10 & 11), Windows introduced
+// a per-user language profile store located at:
+//   HKEY_CURRENT_USER\Control Panel\International\User Profile\<locale_name>
+//
+// In this key, each installed keyboard layout or TSF Text Service profile is
+// represented by a REG_DWORD value:
+//   Name: "<lang ID in hex>:{text service CLSID}{profile GUID}"
+//   Data: 1-based DWORD sequence number (1, 2, ..., N)
+//
+// Why this registry manipulation is necessary:
+// Microsoft's classic Win32 TSF APIs (ITfInputProcessorProfiles::AddLanguageProfile)
+// only register the TIP in HKLM\SOFTWARE\Microsoft\CTF\TIP. They do NOT add the
+// profile to the active user's modern Language Profile store. Without writing to
+// this key, the input method will NOT show up in the modern Win+Space switcher
+// or in Settings until the user manually configures it in Windows Settings.
+//
+// Windows 11 InputSwitch.dll Crash Prevention:
+// The taskbar language switcher (InputSwitch.dll!CtfHandler::GetActiveProfile)
+// indexes an internal array sized to the number of installed profiles using these
+// 1-based DWORD values. If any value exceeds the total profile count (e.g. from
+// counting non-profile metadata like "CachedLanguageName" on install, or leaving
+// gaps after uninstalling a profile), InputSwitch.dll dereferences past the array
+// bounds and crashes explorer.exe.
+//
+// To prevent explorer.exe crashes, these helpers ensure:
+//   1. All existing profiles under <locale_name> are collected.
+//   2. Non-DWORD and non-profile values (like CachedLanguageName) are ignored.
+//   3. Surviving/active profiles are sorted by their existing order to preserve
+//      the user's layout preferences.
+//   4. Orders are strictly renumbered to a contiguous 1-based sequence: 1, 2, ..., N.
+//
+// Note: Keep these helpers self-contained so they can easily be extracted into
+// a dedicated UserProfileRegistry module in a future refactor.
+// ============================================================================
+
+namespace {
+
+// Named constants for well-known Windows service account SIDs and hive suffixes.
+// Note: The Windows SDK only defines binary RIDs (e.g. SECURITY_LOCAL_SYSTEM_RID in winnt.h)
+// and SDDL 2-letter tokens (e.g. SDDL_LOCAL_SYSTEM "SY" in sddl.h), but does not provide
+// string constants for HKEY_USERS subkey names.
+constexpr wchar_t kLocalSystemSid[]    = L"S-1-5-18";
+constexpr wchar_t kLocalServiceSid[]   = L"S-1-5-19";
+constexpr wchar_t kNetworkServiceSid[] = L"S-1-5-20";
+constexpr wchar_t kClassesSuffix[]     = L"_Classes";
+
+struct ProfileOrderEntry {
+    std::wstring name;
+    DWORD order;
+    bool isNew = false;
+};
+
+// Check if a SID key under HKEY_USERS is a valid user profile hive.
+// We must skip:
+// - User Classes hives ("_Classes"), which store COM HKCR registrations and should
+//   never contain Control Panel settings.
+// - Service accounts (S-1-5-18 = LocalSystem, S-1-5-19 = LocalService, S-1-5-20 = NetworkService).
+static bool isValidUserProfileSid(const wchar_t* sid) {
+    if (!sid || !*sid)
+        return false;
+    if (wcsstr(sid, kClassesSuffix) != nullptr)
+        return false;
+    if (_wcsicmp(sid, kLocalSystemSid) == 0 ||
+        _wcsicmp(sid, kLocalServiceSid) == 0 ||
+        _wcsicmp(sid, kNetworkServiceSid) == 0) {
+        return false;
+    }
+    return true;
+}
+
+// Enumerate all valid keyboard/IME layout profile values under a locale key.
+// Ignores metadata values (such as "CachedLanguageName" which is REG_SZ).
+static std::vector<ProfileOrderEntry> getLocaleProfiles(HKEY localeKey) {
+    std::vector<ProfileOrderEntry> entries;
+    DWORD valueCount = 0;
+    DWORD maxValueNameLen = 0;
+    if (::RegQueryInfoKeyW(localeKey, NULL, NULL, NULL, NULL, NULL, NULL, &valueCount, &maxValueNameLen, NULL, NULL, NULL) != ERROR_SUCCESS) {
+        return entries;
+    }
+    std::vector<wchar_t> nameBuf(maxValueNameLen + 2);
+    for (DWORD i = 0; i < valueCount; ++i) {
+        DWORD nameLen = static_cast<DWORD>(nameBuf.size());
+        DWORD type = 0;
+        DWORD order = 0;
+        DWORD dataSize = sizeof(order);
+        if (::RegEnumValueW(localeKey, i, nameBuf.data(), &nameLen, NULL, &type, reinterpret_cast<LPBYTE>(&order), &dataSize) == ERROR_SUCCESS) {
+            // Profile values are REG_DWORD and formatted as "<langid>:<layout/guid>" (must contain ':')
+            if (type == REG_DWORD && wcschr(nameBuf.data(), L':') != nullptr) {
+                entries.push_back({ std::wstring(nameBuf.data(), nameLen), order, false });
+            }
+        }
+    }
+    return entries;
+}
+
+// Renumber profiles sequentially (1, 2, ..., N), preserving existing relative ordering.
+static void renumberLocaleProfiles(HKEY localeKey, std::vector<ProfileOrderEntry>& profiles) {
+    std::stable_sort(profiles.begin(), profiles.end(), [](const ProfileOrderEntry& a, const ProfileOrderEntry& b) {
+        return a.order < b.order;
+    });
+    for (size_t i = 0; i < profiles.size(); ++i) {
+        DWORD newOrder = static_cast<DWORD>(i + 1);
+        if (profiles[i].isNew || profiles[i].order != newOrder) {
+            profiles[i].order = newOrder;
+            profiles[i].isNew = false;
+            ::RegSetValueExW(localeKey, profiles[i].name.c_str(), 0, REG_DWORD,
+                             reinterpret_cast<const BYTE*>(&newOrder), sizeof(newOrder));
+        }
+    }
+}
+
+// Write language profile settings to modern Windows 8+ per-user registry
+// ("HKEY_USERS\<sid>\Control Panel\International\User Profile\<locale_name>").
+// Ensures all profiles are sequentially renumbered (1..N) to prevent InputSwitch.dll crashes.
+static HRESULT registerUserProfiles(const CLSID& textServiceClsid, LangProfileInfo* langs, int langsCount) {
+    if (!::IsWindows8OrGreater()) {
+        return S_OK;
+    }
+
+    DWORD sidCount = 0;
+    if (::RegQueryInfoKeyW(HKEY_USERS, NULL, NULL, NULL, &sidCount, NULL, NULL, NULL, NULL, NULL, NULL, NULL) != ERROR_SUCCESS) {
+        // Do not abort on failure; we still want the rest of the registration to succeed.
+        sidCount = 0;
+    }
+    wchar_t* textServiceClsIdStr = nullptr;
+    if (FAILED(::StringFromCLSID(textServiceClsid, &textServiceClsIdStr))) {
+        return E_FAIL;
+    }
+
+    const wchar_t* defaultUserRegKey = L"__PIME_Default_user__";
+    loadDefaultUserRegistry(defaultUserRegKey);
+
+    // Write the language settings to user-specific registry.
+    wchar_t sid[256];
+    for (DWORD iSid = 0; iSid < sidCount; ++iSid) {
+        DWORD sidLen = sizeof(sid) / sizeof(wchar_t);
+        if (::RegEnumKeyExW(HKEY_USERS, iSid, sid, &sidLen, NULL, NULL, NULL, NULL) == ERROR_SUCCESS) {
+            if (!isValidUserProfileSid(sid)) {
+                continue;
+            }
+            // Write settings of each input module to the user's registry
+            for (int i = 0; i < langsCount; ++i) {
+                auto& lang = langs[i];
+                std::wstring localeRegPath = sid;
+                localeRegPath += L"\\Control Panel\\International\\User Profile\\";
+                localeRegPath += lang.locale;
+                HKEY localeRegKey = NULL;
+                DWORD err = ::RegCreateKeyExW(HKEY_USERS, localeRegPath.c_str(), 0, NULL, REG_OPTION_NON_VOLATILE, KEY_ALL_ACCESS, NULL, &localeRegKey, NULL);
+                if (err == ERROR_SUCCESS) {
+                    LCID lcid = LocaleNameToLCID(lang.locale.c_str(), 0);
+                    if (lcid == 0 && !lang.fallbackLocale.empty()) { // the conversion fails
+                        lcid = LocaleNameToLCID(lang.fallbackLocale.c_str(), 0);  // try the fallback locale name
+                    }
+                    wchar_t lcid_hex[16];
+                    wsprintf(lcid_hex, L"%04x", lcid);
+                    std::wstring valueName = lcid_hex;
+                    valueName += L":";
+                    valueName += textServiceClsIdStr;
+                    wchar_t* profileClsIdStr = nullptr;
+                    if (SUCCEEDED(::StringFromCLSID(lang.profileGuid, &profileClsIdStr))) {
+                        valueName += profileClsIdStr;
+                        ::CoTaskMemFree(profileClsIdStr);
+
+                        auto profiles = getLocaleProfiles(localeRegKey);
+                        auto it = std::find_if(profiles.begin(), profiles.end(), [&](const ProfileOrderEntry& e) {
+                            return _wcsicmp(e.name.c_str(), valueName.c_str()) == 0;
+                        });
+                        if (it == profiles.end()) {
+                            DWORD maxOrder = 0;
+                            for (const auto& p : profiles) {
+                                if (p.order > maxOrder)
+                                    maxOrder = p.order;
+                            }
+                            profiles.push_back({ valueName, maxOrder + 1, true });
+                        }
+                        // Compact and renumber all profiles (1..N) to ensure a contiguous sequence
+                        renumberLocaleProfiles(localeRegKey, profiles);
+                    }
+                    ::RegCloseKey(localeRegKey);
+                }
+            }
+        }
+    }
+    ::CoTaskMemFree(textServiceClsIdStr);
+
+    // Unload the default user registry hive
+    ::RegUnLoadKeyW(HKEY_USERS, defaultUserRegKey);
+    return S_OK;
+}
+
+// Remove language profile settings from modern Windows 8+ per-user registry
+// ("HKEY_USERS\<sid>\Control Panel\International\User Profile\<locale_name>").
+// Renumbers surviving profiles sequentially (1..K) to eliminate gaps that crash InputSwitch.dll.
+static HRESULT unregisterUserProfiles(const CLSID& textServiceClsid) {
+    if (!::IsWindows8OrGreater()) {
+        return S_OK;
+    }
+
+    DWORD sidCount = 0;
+    if (::RegQueryInfoKeyW(HKEY_USERS, NULL, NULL, NULL, &sidCount, NULL, NULL, NULL, NULL, NULL, NULL, NULL) != ERROR_SUCCESS) {
+        // Do not abort on failure; we still want the rest of the unregistration to succeed.
+        sidCount = 0;
+    }
+    wchar_t* textServiceClsIdStr = nullptr;
+    if (FAILED(::StringFromCLSID(textServiceClsid, &textServiceClsIdStr))) {
+        return E_FAIL;
+    }
+
+    const wchar_t* defaultUserRegKey = L"__PIME_Default_user__";
+    loadDefaultUserRegistry(defaultUserRegKey);
+
+    // Delete the language settings from user-specific registry.
+    wchar_t sid[256];
+    for (DWORD iSid = 0; iSid < sidCount; ++iSid) {
+        DWORD sidLen = sizeof(sid) / sizeof(wchar_t);
+        if (::RegEnumKeyExW(HKEY_USERS, iSid, sid, &sidLen, NULL, NULL, NULL, NULL) == ERROR_SUCCESS) {
+            // If this is a _Classes key, clean up any bogus Control Panel entries mistakenly created
+            // by older PIME versions that did not filter out _Classes.
+            if (wcsstr(sid, kClassesSuffix) != nullptr) {
+                std::wstring bogusPath = sid;
+                bogusPath += L"\\Control Panel\\International\\User Profile";
+                ::SHDeleteKeyW(HKEY_USERS, bogusPath.c_str());
+                continue;
+            }
+            if (!isValidUserProfileSid(sid)) {
+                continue;
+            }
+
+            // Remove settings of each input module from the user's registry
+            std::wstring userRegPath = sid;
+            userRegPath += L"\\Control Panel\\International\\User Profile";
+            HKEY userKey = NULL;
+            if (::RegOpenKeyExW(HKEY_USERS, userRegPath.c_str(), 0, KEY_READ, &userKey) == ERROR_SUCCESS) {
+                DWORD localeCount = 0;
+                if (::RegQueryInfoKeyW(userKey, NULL, NULL, NULL, &localeCount, NULL, NULL, NULL, NULL, NULL, NULL, NULL) == ERROR_SUCCESS) {
+                    // List all locales under this user
+                    wchar_t locale[100];
+                    for (DWORD iLocale = 0; iLocale < localeCount; ++iLocale) {
+                        DWORD localeLen = sizeof(locale) / sizeof(wchar_t);
+                        if (::RegEnumKeyExW(userKey, iLocale, locale, &localeLen, NULL, NULL, NULL, NULL) == ERROR_SUCCESS) {
+                            HKEY localeKey = NULL;
+                            if (::RegOpenKeyExW(userKey, locale, 0, KEY_ALL_ACCESS | KEY_READ, &localeKey) == ERROR_SUCCESS) {
+                                auto profiles = getLocaleProfiles(localeKey);
+                                std::vector<ProfileOrderEntry> remainingProfiles;
+                                for (const auto& p : profiles) {
+                                    if (wcsstr(p.name.c_str(), textServiceClsIdStr) != nullptr) {
+                                        // Belongs to us: delete the profile value
+                                        ::RegDeleteValueW(localeKey, p.name.c_str());
+                                    } else {
+                                        remainingProfiles.push_back(p);
+                                    }
+                                }
+                                // Renumber remaining profiles sequentially (1, 2, ..., N) to eliminate gaps
+                                // that would otherwise cause InputSwitch.dll to crash explorer.exe!
+                                renumberLocaleProfiles(localeKey, remainingProfiles);
+                                ::RegCloseKey(localeKey);
+                            }
+                        }
+                    }
+                }
+                ::RegCloseKey(userKey);
+            }
+        }
+    }
+    ::CoTaskMemFree(textServiceClsIdStr);
+
+    // Unload the default user registry hive
+    ::RegUnLoadKeyW(HKEY_USERS, defaultUserRegKey);
+    return S_OK;
+}
+
+} // anonymous namespace
 
 HRESULT ImeModule::registerLangProfiles(LangProfileInfo* langs, int langsCount) {
     // register the language profile
@@ -163,73 +438,10 @@ HRESULT ImeModule::registerLangProfiles(LangProfileInfo* langs, int langsCount) 
     //       Unfortunately, this is not documented officially by Microsoft.
     //       We found the values with some registry monitor tools:
     //       These settings are user-specific so they should be written to HKEY_CURRENT_USER of all users.
-    //       This might be achieved by Microsoft Acitve Setup, yet another undocumented feature.
-    //       https://helgeklein.com/blog/2010/04/active-setup-explained/
-    //
-    //       However, there is no way to uninstall keys installed with Active Setup. So let's avoid it.
-    //       References: https://support.microsoft.com/en-us/kb/284193
-    //                   https://blogs.technet.microsoft.com/deploymentguys/2009/10/29/configuring-default-user-settings-full-update-for-windows-7-and-windows-server-2008-r2/
 #ifndef _WIN64  // only do this for the 32-bit version dll
     // The keys under HKCU\Control Panel\ is shared between the x86 and x64 versions and 
     // are not affected by WOW64 redirection. So doing this inside the 32-bit version is enough.
-
-    if (::IsWindows8OrGreater()) {
-        DWORD sidCount = 0;
-        if (::RegQueryInfoKeyW(HKEY_USERS, NULL, NULL, NULL, &sidCount, NULL, NULL, NULL, NULL, NULL, NULL, NULL) != ERROR_SUCCESS) {
-            // Do not abort on failure; we still want the rest of the registration to succeed.
-            sidCount = 0;
-        }
-        wchar_t* textServiceClsIdStr = nullptr;
-        if (FAILED(::StringFromCLSID(textServiceClsid_, &textServiceClsIdStr)))
-            return E_FAIL;
-
-        const wchar_t* defaultUserRegKey = L"__PIME_Default_user__";
-        loadDefaultUserRegistry(defaultUserRegKey);
-
-        // write the language settings to user-specific registry.
-        wchar_t sid[256];
-        for (DWORD iSid = 0; iSid < sidCount; ++iSid) {
-            DWORD sidLen = sizeof(sid) / sizeof(wchar_t);
-            if (::RegEnumKeyExW(HKEY_USERS, iSid, sid, &sidLen, NULL, NULL, NULL, NULL) == ERROR_SUCCESS) {
-                // write settings of each input module to the user's registry
-                for (int i = 0; i < langsCount; ++i) {
-                    auto& lang = langs[i];
-                    std::wstring localeRegPath = sid;
-                    localeRegPath += L"\\Control Panel\\International\\User Profile\\";
-                    localeRegPath += lang.locale;
-                    HKEY localeRegKey = NULL;
-                    DWORD err = ::RegCreateKeyExW(HKEY_USERS, localeRegPath.c_str(), 0, NULL, REG_OPTION_NON_VOLATILE, KEY_ALL_ACCESS, NULL, &localeRegKey, NULL);
-                    if (err == ERROR_SUCCESS) {
-                        LCID lcid = LocaleNameToLCID(lang.locale.c_str(), 0);
-                        if (lcid == 0 && !lang.fallbackLocale.empty()) { // the conversion fails
-                            lcid = LocaleNameToLCID(lang.fallbackLocale.c_str(), 0);  // try the fallback locale name
-                        }
-                        wchar_t lcid_hex[16];
-                        wsprintf(lcid_hex, L"%04x", lcid);
-                        std::wstring valueName = lcid_hex;
-                        valueName += L":";
-                        valueName += textServiceClsIdStr;
-                        wchar_t* profileClsIdStr = nullptr;
-                        if (SUCCEEDED(::StringFromCLSID(lang.profileGuid, &profileClsIdStr))) {
-                            valueName += profileClsIdStr;
-                            ::CoTaskMemFree(profileClsIdStr);
-                            DWORD profileCount = 1;
-                            if (::RegQueryInfoKeyW(localeRegKey, NULL, NULL, NULL, NULL, NULL, NULL, &profileCount, NULL, NULL, NULL, NULL) == ERROR_SUCCESS) {
-                                // ::MessageBoxW(0, std::to_wstring(profileCount).c_str(), 0, 0);
-                                ++profileCount;
-                            }
-                            ::RegSetKeyValueW(localeRegKey, NULL, valueName.c_str(), REG_DWORD, &profileCount, sizeof(DWORD));
-                        }
-                        ::RegCloseKey(localeRegKey);
-                    }
-                }
-            }
-        }
-        ::CoTaskMemFree(textServiceClsIdStr);
-
-        // unload the default user registry hive
-        ::RegUnLoadKeyW(HKEY_USERS, defaultUserRegKey);
-    }
+    registerUserProfiles(textServiceClsid_, langs, langsCount);
 #endif  // #ifndef _WIN64
     return S_OK;
 }
@@ -356,7 +568,7 @@ HRESULT ImeModule::unregisterServer() {
         if(::IsWindows8OrGreater()) {
             // Windows 8 support
             categoryMgr->UnregisterCategory(textServiceClsid_, GUID_TFCAT_TIPCAP_IMMERSIVESUPPORT, textServiceClsid_);
-            categoryMgr->RegisterCategory(textServiceClsid_, GUID_TFCAT_TIPCAP_SYSTRAYSUPPORT, textServiceClsid_);
+            categoryMgr->UnregisterCategory(textServiceClsid_, GUID_TFCAT_TIPCAP_SYSTRAYSUPPORT, textServiceClsid_);
         }
 
         categoryMgr->Release();
@@ -374,72 +586,8 @@ HRESULT ImeModule::unregisterServer() {
 #ifndef _WIN64  // only do this for the 32-bit version dll
     // The keys under HKCU\Control Panel\ is shared between the x86 and x64 versions and 
     // are not affected by WOW64 redirection. So doing this inside the 32-bit version is enough.
-
-    // delete settings under "HKEY_CURRENT_USER\Control Panel\International\User Profile\<locale_name>" for all users
-    if (::IsWindows8OrGreater()) {
-        DWORD sidCount = 0;
-        if (::RegQueryInfoKeyW(HKEY_USERS, NULL, NULL, NULL, &sidCount, NULL, NULL, NULL, NULL, NULL, NULL, NULL) != ERROR_SUCCESS) {
-            // Do not abort on failure; we still want the rest of the unregistration to succeed.
-            sidCount = 0;
-        }
-        wchar_t* textServiceClsIdStr = nullptr;
-        if (FAILED(::StringFromCLSID(textServiceClsid_, &textServiceClsIdStr)))
-            return E_FAIL;
-
-        const wchar_t* defaultUserRegKey = L"__PIME_Default_user__";
-        loadDefaultUserRegistry(defaultUserRegKey);
-
-        // delete the language settings from user-specific registry.
-        wchar_t sid[256];
-        for (DWORD iSid = 0; iSid < sidCount; ++iSid) {
-            DWORD sidLen = sizeof(sid) / sizeof(wchar_t);
-            if (::RegEnumKeyExW(HKEY_USERS, iSid, sid, &sidLen, NULL, NULL, NULL, NULL) == ERROR_SUCCESS) {
-                // remove settings of each input module to the user's registry
-                std::wstring userRegPath = sid;
-                userRegPath += L"\\Control Panel\\International\\User Profile";
-                HKEY userKey = NULL;
-                if (::RegOpenKeyExW(HKEY_USERS, userRegPath.c_str(), 0, KEY_READ, &userKey) == ERROR_SUCCESS) {
-                    DWORD localeCount = 0;
-                    if (::RegQueryInfoKeyW(userKey, NULL, NULL, NULL, &localeCount, NULL, NULL, NULL, NULL, NULL, NULL, NULL) == ERROR_SUCCESS) {
-                        // list all locales under this user
-                        wchar_t locale[100];
-                        for (DWORD iLocale = 0; iLocale < localeCount; ++iLocale) {
-                            DWORD localeLen = sizeof(locale) / sizeof(wchar_t);
-                            if (::RegEnumKeyExW(userKey, iLocale, locale, &localeLen, NULL, NULL, NULL, NULL) == ERROR_SUCCESS) {
-                                HKEY localeKey = NULL;
-                                if (::RegOpenKeyExW(userKey, locale, 0, KEY_ALL_ACCESS | KEY_READ, &localeKey) == ERROR_SUCCESS) {
-                                    DWORD profileCount = 0;
-                                    ::RegQueryInfoKeyW(localeKey, NULL, NULL, NULL, NULL, NULL, NULL, &profileCount, NULL, NULL, NULL, NULL);
-                                    // list all language profiles under this locale
-                                    std::vector<std::wstring> profiles;
-                                    for (DWORD iProfile = 0; iProfile < profileCount; ++iProfile) {
-                                        wchar_t profile[128];
-                                        DWORD profileLen = sizeof(profile) / sizeof(wchar_t);
-                                        if (::RegEnumValueW(localeKey, iProfile, profile, &profileLen, 0, NULL, NULL, NULL) == ERROR_SUCCESS) {
-                                            if (wcsstr(profile, textServiceClsIdStr)) {  // this profile is registered by us
-                                                profiles.push_back(profile);
-                                            }
-                                        }
-                                    }
-                                    // delete these language profiles beloning to us
-                                    for (const auto& profile : profiles) {
-                                        ::RegDeleteValueW(localeKey, profile.c_str());
-                                    }
-                                    ::RegCloseKey(localeKey);
-                                }
-                            }
-                        }
-                    }
-                    ::RegCloseKey(userKey);
-                }
-            }
-        }
-        ::CoTaskMemFree(textServiceClsIdStr);
-
-        // unload the default user registry hive
-        ::RegUnLoadKeyW(HKEY_USERS, defaultUserRegKey);
-    }
-#endif // #ifndef _WIN64
+    unregisterUserProfiles(textServiceClsid_);
+#endif  // #ifndef _WIN64
     return S_OK;
 }
 
