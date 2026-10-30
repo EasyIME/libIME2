@@ -41,7 +41,10 @@ CandidateWindow::CandidateWindow(TextService* service, EditSession* session):
     currentSel_(0),
     hasResult_(false),
     useCursor_(true),
-    selKeyWidth_(0) {
+    selKeyWidth_(0),
+    page_(0),
+    pageCount_(0),
+    pageTextSize_({0, 0}) {
 
     if(service->isImmersive()) { // windows 8 app mode
         margin_ = 10;
@@ -234,6 +237,15 @@ void CandidateWindow::onPaint(WPARAM wp, LPARAM lp) {
             x += colSpacing_ + selKeyWidth_ + textWidth_;
         }
     }
+
+    // paint the page indicator at the bottom right
+    if(pageCount_ > 1) {
+        wstring text = pageText();
+        COLORREF oldColor = ::SetTextColor(hDC, GetSysColor(COLOR_GRAYTEXT));
+        ::ExtTextOut(hDC, rc.right - margin_ - pageTextSize_.cx, rc.bottom - margin_ - pageTextSize_.cy,
+            0, NULL, text.c_str(), static_cast<UINT>(text.length()), NULL);
+        ::SetTextColor(hDC, oldColor);
+    }
     SelectObject(hDC, oldFont);
     EndPaint(hwnd_, &ps);
 }
@@ -274,6 +286,11 @@ void CandidateWindow::recalculateSize() {
         if(itemHeight > itemHeight_)
             itemHeight_ = itemHeight;
     }
+    pageTextSize_ = {0, 0};
+    if(pageCount_ > 1) {
+        wstring text = pageText();
+        ::GetTextExtentPoint32W(hDC, text.c_str(), static_cast<int>(text.length()), &pageTextSize_);
+    }
     ::SelectObject(hDC, oldFont);
     ::ReleaseDC(hwnd(), hDC);
 
@@ -301,6 +318,13 @@ void CandidateWindow::recalculateSize() {
         if(items_.size() % safeCandPerRow)
             ++rowCount;
         height = itemHeight_ * rowCount + rowSpacing_ * (rowCount - 1) + margin_ * 2;
+    }
+    // reserve a line for the page indicator
+    if(pageCount_ > 1) {
+        height += rowSpacing_ + pageTextSize_.cy;
+        int pageWidth = pageTextSize_.cx + margin_ * 2;
+        if(pageWidth > width)
+            width = pageWidth;
     }
     resize(width, height);
 }
@@ -372,6 +396,20 @@ void CandidateWindow::setUseCursor(bool use) {
     useCursor_ = use;
     if(isVisible())
         ::InvalidateRect(hwnd_, NULL, TRUE);
+}
+
+void CandidateWindow::setPageInfo(int page, int pageCount) {
+    if(page != page_ || pageCount != pageCount_) {
+        page_ = page;
+        pageCount_ = pageCount;
+        if(isVisible())
+            ::InvalidateRect(hwnd_, NULL, TRUE);
+    }
+}
+
+wstring CandidateWindow::pageText() const {
+    // Name the keys that turn pages, so the user knows how to reach the others.
+    return L"PgUp  " + to_wstring(page_) + L"/" + to_wstring(pageCount_) + L"  PgDn";
 }
 
 void CandidateWindow::paintItem(HDC hDC, int i,  int x, int y) {
