@@ -38,6 +38,14 @@ public:
     }
     void setText(std::wstring text);
 
+    // configured colors (upstream #902); 0 keeps the system palette
+    void setTextColor(COLORREF color) {
+        textColor_ = color;
+    }
+    void setBackgroundColor(COLORREF color) {
+        backgroundColor_ = color;
+    }
+
     TextService* textService() {
         return textService_;
     }
@@ -49,6 +57,8 @@ protected:
 
 private:
     std::wstring text_;
+    COLORREF textColor_ = 0;
+    COLORREF backgroundColor_ = 0;
 };
 
 }

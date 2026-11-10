@@ -200,8 +200,8 @@ void CandidateWindow::onPaint(WPARAM wp, LPARAM lp) {
     oldFont = (HFONT)SelectObject(hDC, font_);
 
     GetClientRect(hwnd_,&rc);
-    SetTextColor(hDC, GetSysColor(COLOR_WINDOWTEXT));
-    SetBkColor(hDC, GetSysColor(COLOR_WINDOW));
+    SetTextColor(hDC, textColor_ != 0 ? textColor_ : GetSysColor(COLOR_WINDOWTEXT));
+    SetBkColor(hDC, backgroundColor_ != 0 ? backgroundColor_ : GetSysColor(COLOR_WINDOW));
 
     // paint window background and border
     // draw a flat black border in Windows 8 app immersive mode
@@ -215,7 +215,7 @@ void CandidateWindow::onPaint(WPARAM wp, LPARAM lp) {
     }
     else {
         // draw a 3d border in desktop mode
-        ::FillSolidRect(ps.hdc, rc.left, rc.top, rc.right - rc.left, rc.bottom - rc.top, GetSysColor(COLOR_WINDOW));
+        ::FillSolidRect(ps.hdc, rc.left, rc.top, rc.right - rc.left, rc.bottom - rc.top, backgroundColor_ != 0 ? backgroundColor_ : GetSysColor(COLOR_WINDOW));
         ::Draw3DBorder(hDC, &rc, GetSysColor(COLOR_3DFACE), 0);
     }
 
@@ -377,8 +377,8 @@ void CandidateWindow::paintItem(HDC hDC, int i,  int x, int y) {
     wchar_t selKey[] = L"?. ";
     selKey[0] = selKeys_[i];
     textRect.right = textRect.left + selKeyWidth_;
-    // FIXME: make the color of strings configurable.
-    COLORREF selKeyColor = RGB(0, 0, 255);
+    // the configured selection-key color (upstream #902); 0 keeps the old blue
+    COLORREF selKeyColor = selKeyColor_ != 0 ? selKeyColor_ : RGB(0, 0, 255);
     COLORREF oldColor = ::SetTextColor(hDC, selKeyColor);
     // paint the selection key
     ::ExtTextOut(hDC, textRect.left, textRect.top, ETO_OPAQUE, &textRect, selKey, 3, NULL);
