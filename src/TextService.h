@@ -258,6 +258,7 @@ protected:
 
     void installEventListeners();
     void uninstallEventListeners();
+    void updateTextEditSink(ITfDocumentMgr* docMgr);
 
     void activateLanguageButtons();
     void deactivateLanguageButtons();

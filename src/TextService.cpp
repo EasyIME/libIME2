@@ -202,37 +202,45 @@ void TextService::startComposition(ITfContext* context) {
 void TextService::endComposition(ITfContext* context) {
     assert(context);
     HRESULT sessionResult;
+    // Keep TextService alive in case TSF defers the edit session asynchronously
+    // (e.g. when endComposition is called from ITfTextEditSink::OnEndEdit).
+    // The ITfContext is kept alive by EditSession's ComPtr<ITfContext>.
+    ComPtr<TextService> self(this);
     auto editSession = ComPtr<EditSession>::make(
         context,
-        [=](EditSession* session, TfEditCookie cookie) {
-            if (composition_) {
+        [self](EditSession* session, TfEditCookie cookie) {
+            ITfContext* ctx = session->context();
+            if (self->composition_) {
                 // move current insertion point to end of the composition string
                 ComPtr<ITfRange> compositionRange;
-                if (composition_->GetRange(&compositionRange) == S_OK) {
+                if (self->composition_->GetRange(&compositionRange) == S_OK) {
                     // clear display attribute for the composition range
                     ComPtr<ITfProperty> dispAttrProp;
-                    if (context->GetProperty(GUID_PROP_ATTRIBUTE, &dispAttrProp) == S_OK) {
+                    if (ctx->GetProperty(GUID_PROP_ATTRIBUTE, &dispAttrProp) == S_OK) {
                         dispAttrProp->Clear(cookie, compositionRange);
                     }
 
                     TF_SELECTION selection;
                     ULONG selectionNum;
-                    if (context->GetSelection(cookie, TF_DEFAULT_SELECTION, 1, &selection, &selectionNum) == S_OK) {
+                    if (ctx->GetSelection(cookie, TF_DEFAULT_SELECTION, 1, &selection, &selectionNum) == S_OK) {
                         selection.range->ShiftEndToRange(cookie, compositionRange, TF_ANCHOR_END);
                         selection.range->Collapse(cookie, TF_ANCHOR_END);
-                        context->SetSelection(cookie, 1, &selection);
+                        ctx->SetSelection(cookie, 1, &selection);
                         selection.range->Release();
                     }
                 }
                 // end composition and clean up
-                composition_->EndComposition(cookie);
+                self->composition_->EndComposition(cookie);
                 // do some cleanup in the derived class here
-                onCompositionTerminated(false);
-                composition_ = nullptr;
+                self->onCompositionTerminated(false);
+                self->composition_ = nullptr;
             }
         }
     );
-    context->RequestEditSession(clientId_, editSession, TF_ES_SYNC|TF_ES_READWRITE, &sessionResult);
+    // Use TF_ES_ASYNCDONTCARE so normal callers still execute synchronously,
+    // while calls from OnEndEdit (which holds a read-only lock where TF_ES_SYNC
+    // fails with TF_E_SYNCHRONOUS) are queued asynchronously by TSF.
+    context->RequestEditSession(clientId_, editSession, TF_ES_ASYNCDONTCARE | TF_ES_READWRITE, &sessionResult);
 }
 
 std::wstring TextService::compositionString(EditSession* session) const {
@@ -511,11 +519,18 @@ void TextService::initKeyboardState() {
 }
 
 void TextService::installEventListeners() {
-    // ITfThreadMgrEventSink, ITfActiveLanguageProfileNotifySink, and ITfTextEditSink
+    // ITfThreadMgrEventSink and ITfActiveLanguageProfileNotifySink
     if (auto source = threadMgr_.query<ITfSource>()) {
         threadMgrEventSink_ = SinkAdvice{ source, IID_ITfThreadMgrEventSink, static_cast<ITfThreadMgrEventSink*>(this) };
         activateLanguageProfileNotifySink_ = SinkAdvice{ source, IID_ITfActiveLanguageProfileNotifySink, static_cast<ITfActiveLanguageProfileNotifySink*>(this) };
-        textEditSink_ = SinkAdvice{ source, IID_ITfTextEditSink, static_cast<ITfTextEditSink*>(this) };
+    }
+
+    // ITfTextEditSink is a context-level sink and must be advised on the active
+    // ITfContext, not ITfThreadMgr. Advise it on the initially focused document
+    // here; OnSetFocus() updates it whenever focus moves to another document.
+    ComPtr<ITfDocumentMgr> docMgr;
+    if (threadMgr_->GetFocus(&docMgr) == S_OK) {
+        updateTextEditSink(docMgr);
     }
 
     // ITfKeyEventSink
@@ -551,6 +566,21 @@ void TextService::uninstallEventListeners() {
 
     // Keyboard open status change.
     keyboardOPenCloseSink_.unadvise();
+}
+
+// Unadvises the previous context and advises ITfTextEditSink on the top
+// ITfContext of docMgr (if any).
+void TextService::updateTextEditSink(ITfDocumentMgr* docMgr) {
+    textEditSink_.unadvise();
+    if (!docMgr) {
+        return;
+    }
+    ComPtr<ITfContext> context;
+    if (docMgr->GetTop(&context) == S_OK && context) {
+        if (auto source = context.query<ITfSource>()) {
+            textEditSink_ = SinkAdvice{ source, IID_ITfTextEditSink, static_cast<ITfTextEditSink*>(this) };
+        }
+    }
 }
 
 void TextService::activateLanguageButtons() {
@@ -650,6 +680,8 @@ STDMETHODIMP TextService::OnUninitDocumentMgr(ITfDocumentMgr *pDocMgr) {
 }
 
 STDMETHODIMP TextService::OnSetFocus(ITfDocumentMgr *pDocMgrFocus, ITfDocumentMgr *pDocMgrPrevFocus) {
+    // Re-advise ITfTextEditSink on the newly focused document's top context.
+    updateTextEditSink(pDocMgrFocus);
     return S_OK;
 }
 
@@ -671,17 +703,18 @@ STDMETHODIMP TextService::OnEndEdit(ITfContext *pContext, TfEditCookie ecReadOnl
 
     // NOTE: I don't really know why this is needed and tests yielded no obvious effect
     // of this piece of code, but from MS TSF samples, this is needed.
-    BOOL selChanged;
-    if(pEditRecord->GetSelectionStatus(&selChanged) == S_OK) {
+    BOOL selChanged = FALSE;
+    if(pEditRecord && pEditRecord->GetSelectionStatus(&selChanged) == S_OK) {
         if(selChanged && isComposing()) {
             // we need to check if current selection is in our composition string.
             // if after others' editing the selection (insertion point) has been changed and
             // fell outside our composition area, terminate the composition.
-            TF_SELECTION selection;
-            ULONG selectionNum;
-            if(pContext->GetSelection(ecReadOnly, TF_DEFAULT_SELECTION, 1, &selection, &selectionNum) == S_OK) {
+            TF_SELECTION selection = {};
+            ULONG selectionNum = 0;
+            if(pContext && pContext->GetSelection(ecReadOnly, TF_DEFAULT_SELECTION, 1, &selection, &selectionNum) == S_OK
+                && selectionNum > 0 && selection.range != nullptr) {
                 ComPtr<ITfRange> compRange;
-                if(composition_->GetRange(&compRange) == S_OK) {
+                if(composition_->GetRange(&compRange) == S_OK && compRange) {
                     // check if two ranges overlaps
                     // check if current selection is covered by composition range
                     LONG compareResult1;
