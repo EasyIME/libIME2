@@ -1,6 +1,7 @@
 #include "gtest/gtest.h"
 #include "gmock/gmock.h"
 
+#include <memory>
 #include <unknwn.h>
 #include "ComPtr.h"
 #include "ComObject.h"
@@ -109,4 +110,19 @@ TEST(TestComPtr, Assignment)
     EXPECT_EQ(ptr3, &obj2);
     EXPECT_EQ(obj2.refCount(), 2);  // ref count does not change.
     EXPECT_EQ(ptr, nullptr);  // moved ptr is cleared.
+
+    // Move assignment over an existing non-null ComPtr must release the old reference.
+    Ime::ComPtr<IUnknownMock> ptr4{ &obj };
+    EXPECT_EQ(obj.refCount(), 2);
+    ptr4 = std::move(ptr3);
+    EXPECT_EQ(obj.refCount(), 1);
+    EXPECT_EQ(ptr4, &obj2);
+    EXPECT_EQ(obj2.refCount(), 2);
+    EXPECT_EQ(ptr3, nullptr);
+
+    // Self move assignment must be a no-op.
+    auto* selfAlias = std::addressof(ptr4);
+    ptr4 = std::move(*selfAlias);
+    EXPECT_EQ(ptr4, &obj2);
+    EXPECT_EQ(obj2.refCount(), 2);
 }

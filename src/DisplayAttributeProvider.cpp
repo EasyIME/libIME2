@@ -38,12 +38,19 @@ DisplayAttributeProvider::~DisplayAttributeProvider(void) {
 
 // ITfDisplayAttributeProvider
 STDMETHODIMP DisplayAttributeProvider::EnumDisplayAttributeInfo(IEnumTfDisplayAttributeInfo **ppEnum) {
-    *ppEnum = (IEnumTfDisplayAttributeInfo*)new DisplayAttributeInfoEnum(this);
+    if (!ppEnum) {
+        return E_INVALIDARG;
+    }
+    *ppEnum = static_cast<IEnumTfDisplayAttributeInfo*>(new DisplayAttributeInfoEnum(this));
     return S_OK;
 }
 
 STDMETHODIMP DisplayAttributeProvider::GetDisplayAttributeInfo(REFGUID guidInfo, ITfDisplayAttributeInfo **ppInfo) {
-    for(auto& info: imeModule_->displayAttrInfos()) {
+    if (!ppInfo) {
+        return E_INVALIDARG;
+    }
+    *ppInfo = nullptr;
+    for(const auto& info: imeModule_->displayAttrInfos()) {
         if(::IsEqualGUID(info->guid(), guidInfo)) {
             *ppInfo = info;
             info->AddRef();

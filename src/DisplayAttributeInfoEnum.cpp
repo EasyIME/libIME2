@@ -26,7 +26,7 @@ namespace Ime {
 
 DisplayAttributeInfoEnum::DisplayAttributeInfoEnum(ComPtr<DisplayAttributeProvider> provider):
     provider_(std::move(provider)) {
-    auto& displayAttrInfos = provider_->imeModule_->displayAttrInfos();
+    const auto& displayAttrInfos = provider_->imeModule_->displayAttrInfos();
     iterator_ = displayAttrInfos.begin();
 }
 
@@ -35,14 +35,20 @@ DisplayAttributeInfoEnum::~DisplayAttributeInfoEnum(void) {
 
 // IEnumTfDisplayAttributeInfo
 STDMETHODIMP DisplayAttributeInfoEnum::Clone(IEnumTfDisplayAttributeInfo **ppEnum) {
+    if (!ppEnum) {
+        return E_INVALIDARG;
+    }
     *ppEnum = static_cast<IEnumTfDisplayAttributeInfo*>(new DisplayAttributeInfoEnum(*this));
     return S_OK;
 }
 
 STDMETHODIMP DisplayAttributeInfoEnum::Next(ULONG ulCount, ITfDisplayAttributeInfo **rgInfo, ULONG *pcFetched) {
+    if (ulCount > 0 && rgInfo == nullptr) {
+        return E_INVALIDARG;
+    }
     ULONG n = 0;
     if (rgInfo != nullptr) {
-        auto& displayAttrInfos = provider_->imeModule_->displayAttrInfos();
+        const auto& displayAttrInfos = provider_->imeModule_->displayAttrInfos();
         for (; n < ulCount && iterator_ != displayAttrInfos.end(); ++n, ++iterator_) {
             auto& info = *iterator_;
             info->AddRef();
@@ -56,19 +62,19 @@ STDMETHODIMP DisplayAttributeInfoEnum::Next(ULONG ulCount, ITfDisplayAttributeIn
 }
 
 STDMETHODIMP DisplayAttributeInfoEnum::Reset() {
-    auto& displayAttrInfos = provider_->imeModule_->displayAttrInfos();
+    const auto& displayAttrInfos = provider_->imeModule_->displayAttrInfos();
     iterator_ = displayAttrInfos.begin();
     return S_OK;
 }
 
 STDMETHODIMP DisplayAttributeInfoEnum::Skip(ULONG ulCount) {
-    auto& displayAttrInfos = provider_->imeModule_->displayAttrInfos();
+    const auto& displayAttrInfos = provider_->imeModule_->displayAttrInfos();
     ULONG n = 0;
     while (n < ulCount && iterator_ != displayAttrInfos.end()) {
         ++iterator_;
         ++n;
     }
-    return S_OK;
+    return n < ulCount ? S_FALSE : S_OK;
 }
 
 } // namespace Ime
