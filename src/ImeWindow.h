@@ -38,7 +38,12 @@ public:
         return textService_->isImmersive();
     }
 
-    void setFont(HFONT f);
+    // Sets the font used by this window.
+    // If ownFont is true, ImeWindow takes ownership of f and will call
+    // ::DeleteObject(f) when the font is replaced or the window is destroyed.
+    // If ownFont is false (default), the caller retains ownership of f and
+    // must keep it valid while this window uses it.
+    void setFont(HFONT f, bool ownFont = false);
     virtual void recalculateSize();
 
 protected:
@@ -50,7 +55,11 @@ protected:
     TextService* textService_;
     POINTS oldPos;
     HFONT font_;
+    bool ownsFont_;
     int margin_;
+
+private:
+    void releaseFont();
 };
 
 }

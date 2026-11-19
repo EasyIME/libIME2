@@ -22,7 +22,8 @@
 namespace Ime {
 
 ImeWindow::ImeWindow(TextService* service):
-    textService_(service) {
+    textService_(service),
+    ownsFont_(false) {
 
     if(service->isImmersive()) { // windows 8 app mode
         margin_ = 10;
@@ -42,6 +43,15 @@ ImeWindow::ImeWindow(TextService* service):
 }
 
 ImeWindow::~ImeWindow(void) {
+    releaseFont();
+}
+
+void ImeWindow::releaseFont() {
+    if(ownsFont_ && font_) {
+        ::DeleteObject(font_);
+    }
+    font_ = nullptr;
+    ownsFont_ = false;
 }
 
 void ImeWindow::onLButtonDown(WPARAM wp, LPARAM lp) {
@@ -86,10 +96,14 @@ void ImeWindow::move(int x, int y) {
     ::MoveWindow(hwnd_, x, y, w, h, TRUE);
 }
 
-void ImeWindow::setFont(HFONT f) {
-    if(font_)
-        ::DeleteObject(font_);
-    font_ = f;
+// Sets the font used by this window. When ownFont is true, ImeWindow takes
+// ownership of f and calls ::DeleteObject() when replaced or destroyed.
+void ImeWindow::setFont(HFONT f, bool ownFont) {
+    if(f != font_) {
+        releaseFont();
+        font_ = f;
+    }
+    ownsFont_ = ownFont;
     recalculateSize();
     if(isVisible())
         ::InvalidateRect(hwnd_, NULL, TRUE);

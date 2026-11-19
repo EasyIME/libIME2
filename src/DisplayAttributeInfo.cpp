@@ -36,21 +36,29 @@ DisplayAttributeInfo::~DisplayAttributeInfo(void) {
 
 // ITfDisplayAttributeInfo
 STDMETHODIMP DisplayAttributeInfo::GetGUID(GUID *pguid) {
+    if (!pguid)
+        return E_INVALIDARG;
     *pguid = guid_;
     return S_OK;
 }
 
 STDMETHODIMP DisplayAttributeInfo::GetDescription(BSTR *pbstrDesc) {
+    if (!pbstrDesc)
+        return E_INVALIDARG;
     *pbstrDesc = ::SysAllocString(desc_.c_str());
     return *pbstrDesc ? S_OK : E_FAIL;
 }
 
 STDMETHODIMP DisplayAttributeInfo::GetAttributeInfo(TF_DISPLAYATTRIBUTE *ptfDisplayAttr) {
+    if (!ptfDisplayAttr)
+        return E_INVALIDARG;
     *ptfDisplayAttr = attrib_;
     return S_OK;
 }
 
 STDMETHODIMP DisplayAttributeInfo::SetAttributeInfo(const TF_DISPLAYATTRIBUTE *ptfDisplayAttr) {
+    if (!ptfDisplayAttr)
+        return E_INVALIDARG;
     attrib_ = *ptfDisplayAttr;
     return S_OK;
 }

@@ -405,7 +405,7 @@ void CandidateWindow::paintItem(HDC hDC, int i,  int x, int y) {
 }
 
 void CandidateWindow::itemRect(int i, RECT& rect) {
-    const int candPerRow = std::max(1, candPerRow_);
+    const int candPerRow = (std::max)(1, candPerRow_);
     int row = i / candPerRow;
     int col = i % candPerRow;
     rect.left = margin_ + col * (selKeyWidth_ + textWidth_ + colSpacing_);

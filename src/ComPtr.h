@@ -20,6 +20,7 @@
 #ifndef IME_COM_PTR_H
 #define IME_COM_PTR_H
 
+#include <memory>
 #include <utility>
 
 // ATL-indepdent smart pointers for COM objects
@@ -118,8 +119,14 @@ public:
     }
 
     ComPtr& operator = (ComPtr&& other) noexcept {
-        p_ = other.p_;
-        other.p_ = nullptr;
+        if (this != std::addressof(other)) {
+            T* old = p_;
+            p_ = other.p_;
+            other.p_ = nullptr;
+            if (old) {
+                old->Release();
+            }
+        }
         return *this;
     }
 
