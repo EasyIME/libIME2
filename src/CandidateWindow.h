@@ -100,6 +100,17 @@ public:
 
     void setUseCursor(bool use);
 
+    // configured colors (upstream #902); 0 keeps the system palette
+    void setTextColor(COLORREF color) {
+        textColor_ = color;
+    }
+    void setBackgroundColor(COLORREF color) {
+        backgroundColor_ = color;
+    }
+    void setSelKeyColor(COLORREF color) {
+        selKeyColor_ = color;
+    }
+
 protected:
     LRESULT wndProc(UINT msg, WPARAM wp , LPARAM lp);
     void onPaint(WPARAM wp, LPARAM lp);
@@ -123,6 +134,9 @@ private:
     int currentSel_;
     bool hasResult_;
     bool useCursor_;
+    COLORREF textColor_ = 0;
+    COLORREF backgroundColor_ = 0;
+    COLORREF selKeyColor_ = 0;
 };
 
 }

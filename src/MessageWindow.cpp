@@ -83,8 +83,8 @@ void MessageWindow::onPaint(PAINTSTRUCT& ps) {
 
     SetBkMode(hDC, TRANSPARENT);
     if(isImmersive()) {
-        SetTextColor(hDC, GetSysColor(COLOR_WINDOWTEXT));
-        SetBkColor(hDC, GetSysColor(COLOR_WINDOW));
+        SetTextColor(hDC, textColor_ != 0 ? textColor_ : GetSysColor(COLOR_WINDOWTEXT));
+        SetBkColor(hDC, backgroundColor_ != 0 ? backgroundColor_ : GetSysColor(COLOR_WINDOW));
         HPEN pen = ::CreatePen(PS_SOLID, 3, RGB(0, 0, 0));
         HGDIOBJ oldPen = ::SelectObject(hDC, pen);
         ::Rectangle(hDC, rc.left, rc.top, rc.right, rc.bottom);
@@ -92,10 +92,10 @@ void MessageWindow::onPaint(PAINTSTRUCT& ps) {
         ::DeleteObject(pen);
     }
     else {
-        SetTextColor(hDC, GetSysColor(COLOR_INFOTEXT));
-        SetBkColor(hDC, GetSysColor(COLOR_INFOBK));
+        SetTextColor(hDC, textColor_ != 0 ? textColor_ : GetSysColor(COLOR_INFOTEXT));
+        SetBkColor(hDC, backgroundColor_ != 0 ? backgroundColor_ : GetSysColor(COLOR_INFOBK));
         // draw a 3d border in desktop mode
-        ::FillSolidRect(hDC, &rc, ::GetSysColor(COLOR_INFOBK));
+        ::FillSolidRect(hDC, &rc, backgroundColor_ != 0 ? backgroundColor_ : ::GetSysColor(COLOR_INFOBK));
         ::Draw3DBorder(hDC, &rc, GetSysColor(COLOR_3DFACE), 0);
     }
 
